@@ -1,0 +1,105 @@
+'use client';
+
+import { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import {
+  LayoutDashboard,
+  Package,
+  FileText,
+  Settings,
+  TrendingUp,
+  AlertTriangle,
+  PlusCircle,
+  History,
+  Download,
+  DollarSign,
+} from 'lucide-react';
+
+type Page = 'dashboard' | 'inventory' | 'business-settings' | 'invoices' | 'invoice-history' | 'revenue-tracking' | 'data-management' | 'expenses-income';
+
+interface SidebarProps {
+  currentPage: Page;
+  onPageChange: (page: Page) => void;
+  lowStockCount: number;
+}
+
+const Sidebar: React.FC<SidebarProps> = ({ currentPage, onPageChange, lowStockCount }) => {
+  const menuItems = [
+    { id: 'dashboard' as Page, label: 'Dashboard', icon: LayoutDashboard },
+    { id: 'inventory' as Page, label: 'Inventory', icon: Package, badge: lowStockCount > 0 ? lowStockCount : null },
+    { id: 'invoices' as Page, label: 'Create Invoice', icon: PlusCircle, highlight: true },
+    { id: 'invoice-history' as Page, label: 'Invoice History', icon: History },
+    { id: 'revenue-tracking' as Page, label: 'Revenue Tracking', icon: TrendingUp },
+    { id: 'expenses-income' as Page, label: 'Expenses & Income', icon: DollarSign },
+    { id: 'business-settings' as Page, label: 'Business Settings', icon: Settings },
+    { id: 'data-management' as Page, label: 'Data Management', icon: Download },
+  ];
+
+  return (
+    <div className="w-64 bg-sidebar border-r border-sidebar-border h-screen flex flex-col">
+      {/* Logo/Title */}
+      <div className="p-6 border-b border-sidebar-border">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-sidebar-primary rounded-lg flex items-center justify-center">
+            <FileText className="w-6 h-6 text-sidebar-primary-foreground" />
+          </div>
+          <div>
+            <h1 className="font-bold text-lg text-sidebar-foreground">Mechanic</h1>
+            <p className="text-xs text-sidebar-foreground/60">Shop Manager</p>
+          </div>
+        </div>
+      </div>
+
+      {/* Low Stock Alert */}
+      {lowStockCount > 0 && (
+        <div className="m-4 p-4 bg-destructive/10 border border-destructive/20 rounded-lg flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="font-semibold text-sm text-destructive">{lowStockCount} Items Low</p>
+            <p className="text-xs text-destructive/80">Check inventory soon</p>
+          </div>
+        </div>
+      )}
+
+      {/* Menu Items */}
+      <nav className="flex-1 overflow-y-auto p-4 space-y-2">
+        {menuItems.map((item) => {
+          const Icon = item.icon;
+          const isActive = currentPage === item.id;
+          
+          return (
+            <button
+              key={item.id}
+              onClick={() => onPageChange(item.id)}
+              className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-colors ${
+                isActive
+                  ? 'bg-sidebar-primary text-sidebar-primary-foreground'
+                  : 'text-sidebar-foreground hover:bg-sidebar-accent/30'
+              } ${item.highlight ? 'font-semibold' : ''}`}
+            >
+              <div className="flex items-center gap-3">
+                <Icon className="w-5 h-5" />
+                <span>{item.label}</span>
+              </div>
+              {item.badge && item.badge > 0 && (
+                <Badge variant="destructive" className="text-xs">
+                  {item.badge}
+                </Badge>
+              )}
+            </button>
+          );
+        })}
+      </nav>
+
+      {/* Footer */}
+      <div className="p-4 border-t border-sidebar-border">
+        <p className="text-xs text-sidebar-foreground/60 text-center">
+          Mechanic Shop v1.0
+        </p>
+      </div>
+    </div>
+  );
+};
+
+export default Sidebar;

@@ -1,0 +1,188 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { AlertTriangle, Package, FileText, TrendingUp, Plus, Settings, BarChart3 } from 'lucide-react';
+import { db } from '@/lib/db';
+
+interface DashboardPageProps {
+  onLowStockUpdate?: (count: number) => void;
+  onNavigate?: (page: 'invoices' | 'inventory' | 'revenue-tracking') => void;
+}
+
+interface Stats {
+  totalProducts: number;
+  lowStockItems: number;
+  totalInvoices: number;
+  monthlyRevenue: number;
+}
+
+const DashboardPage: React.FC<DashboardPageProps> = ({ onLowStockUpdate, onNavigate }) => {
+  const [stats, setStats] = useState<Stats>({
+    totalProducts: 0,
+    lowStockItems: 0,
+    totalInvoices: 0,
+    monthlyRevenue: 0,
+  });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const loadDashboardData = async () => {
+      try {
+        setLoading(true);
+        
+        // Get total products
+        const products = await db.query('SELECT COUNT(*) as count FROM products');
+        const totalProducts = products[0]?.count || 0;
+
+        // Get low stock items
+        const lowStock = await db.query(
+          'SELECT COUNT(*) as count FROM products WHERE quantity_in_stock <= low_stock_threshold'
+        );
+        const lowStockItems = lowStock[0]?.count || 0;
+
+        // Get total invoices
+        const invoices = await db.query("SELECT COUNT(*) as count FROM invoices WHERE status != 'draft'");
+        const totalInvoices = invoices[0]?.count || 0;
+
+        // Get this month's revenue
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = today.getMonth() + 1;
+        const startDate = new Date(year, month - 1, 1).toISOString().split('T')[0];
+        const endDate = new Date(year, month, 0).toISOString().split('T')[0];
+
+        const profit = await db.get(
+          `SELECT SUM(total) as total_revenue FROM invoices 
+           WHERE invoice_date >= ? AND invoice_date <= ? AND status != 'draft'`,
+          [startDate, endDate]
+        );
+
+        // Get this month's expenses and income
+        const expensesData = await db.get(
+          `SELECT SUM(amount) as total FROM expenses WHERE expense_date >= ? AND expense_date <= ?`,
+          [startDate, endDate]
+        );
+
+        const incomeData = await db.get(
+          `SELECT SUM(amount) as total FROM income WHERE income_date >= ? AND income_date <= ?`,
+          [startDate, endDate]
+        );
+
+        setStats({
+          totalProducts,
+          lowStockItems,
+          totalInvoices,
+          monthlyRevenue: profit?.total_revenue || 0,
+        });
+
+        if (onLowStockUpdate) {
+          onLowStockUpdate(lowStockItems);
+        }
+      } catch (error) {
+        console.error('Error loading dashboard data:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadDashboardData();
+  }, [onLowStockUpdate]);
+
+  const StatCard = ({ icon: Icon, label, value, color, showAlert = false }: any) => (
+    <Card className="p-6 flex items-start gap-4">
+      <div className={`p-3 rounded-lg ${color}`}>
+        <Icon className="w-6 h-6" />
+      </div>
+      <div className="flex-1">
+        <p className="text-sm text-muted-foreground">{label}</p>
+        <p className="text-2xl font-bold mt-1">{loading ? '...' : value}</p>
+        {showAlert && value > 0 && (
+          <p className="text-xs text-destructive mt-2">⚠️ Action required</p>
+        )}
+      </div>
+    </Card>
+  );
+
+  return (
+    <div className="p-8 space-y-8">
+      {/* Header */}
+      <div>
+        <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
+        <p className="text-muted-foreground mt-1">Welcome to your shop management system</p>
+      </div>
+
+      {/* Stats Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatCard
+          icon={Package}
+          label="Total Products"
+          value={stats.totalProducts}
+          color="bg-blue-100 text-blue-600"
+        />
+        <StatCard
+          icon={AlertTriangle}
+          label="Low Stock Items"
+          value={stats.lowStockItems}
+          color="bg-red-100 text-red-600"
+          showAlert={true}
+        />
+        <StatCard
+          icon={FileText}
+          label="Total Invoices"
+          value={stats.totalInvoices}
+          color="bg-green-100 text-green-600"
+        />
+        <StatCard
+          icon={TrendingUp}
+          label="Monthly Revenue"
+          value={`₱${stats.monthlyRevenue.toFixed(2)}`}
+          color="bg-purple-100 text-purple-600"
+        />
+      </div>
+
+      {/* Recent Activity */}
+      <Card className="p-6">
+        <h2 className="text-lg font-bold mb-4">Quick Actions</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Button
+            onClick={() => onNavigate?.('invoices')}
+            variant="outline"
+            className="p-4 h-auto flex flex-col items-start gap-2 hover:bg-primary/5"
+          >
+            <Plus className="w-5 h-5" />
+            <div className="text-left">
+              <p className="font-semibold text-sm">Create Invoice</p>
+              <p className="text-xs text-muted-foreground">Start a new invoice for your customers</p>
+            </div>
+          </Button>
+          <Button
+            onClick={() => onNavigate?.('inventory')}
+            variant="outline"
+            className="p-4 h-auto flex flex-col items-start gap-2 hover:bg-green-50"
+          >
+            <Package className="w-5 h-5" />
+            <div className="text-left">
+              <p className="font-semibold text-sm">Manage Inventory</p>
+              <p className="text-xs text-muted-foreground">Update product stock and pricing</p>
+            </div>
+          </Button>
+          <Button
+            onClick={() => onNavigate?.('revenue-tracking')}
+            variant="outline"
+            className="p-4 h-auto flex flex-col items-start gap-2 hover:bg-purple-50"
+          >
+            <BarChart3 className="w-5 h-5" />
+            <div className="text-left">
+              <p className="font-semibold text-sm">View Reports</p>
+              <p className="text-xs text-muted-foreground">Check your revenue and profit</p>
+            </div>
+          </Button>
+        </div>
+      </Card>
+    </div>
+  );
+};
+
+export default DashboardPage;
