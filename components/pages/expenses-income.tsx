@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus, Trash2, Edit2 } from 'lucide-react';
 import { db } from '@/lib/db';
+import { useLanguage } from '@/hooks/use-language';
 
 interface Expense {
   id: number;
@@ -30,6 +31,7 @@ interface IncomeEntry {
 }
 
 const ExpensesIncomePage: React.FC = () => {
+  const { formatCurrency, formatDate, t } = useLanguage();
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [incomeEntries, setIncomeEntries] = useState<IncomeEntry[]>([]);
   const [activeTab, setActiveTab] = useState<'expenses' | 'income'>('expenses');
@@ -66,7 +68,7 @@ const ExpensesIncomePage: React.FC = () => {
 
   const handleSubmit = async () => {
     if (!formData.category.trim() || !formData.description.trim() || !formData.amount) {
-      alert('Please fill in all required fields');
+      alert(t('fillRequiredFields'));
       return;
     }
 
@@ -101,7 +103,7 @@ const ExpensesIncomePage: React.FC = () => {
       await loadData();
     } catch (error) {
       console.error('[ExpensesIncome] Error saving:', error);
-      alert('Error saving data');
+      alert(t('errorSavingData'));
     }
   };
 
@@ -119,7 +121,7 @@ const ExpensesIncomePage: React.FC = () => {
   };
 
   const handleDelete = async (id: number) => {
-    if (!window.confirm('Are you sure you want to delete this entry?')) return;
+    if (!window.confirm(t('deleteEntryConfirm'))) return;
 
     try {
       const table = activeTab === 'expenses' ? 'expenses' : 'income';
@@ -127,7 +129,7 @@ const ExpensesIncomePage: React.FC = () => {
       await loadData();
     } catch (error) {
       console.error('[ExpensesIncome] Error deleting:', error);
-      alert('Error deleting entry');
+      alert(t('errorDeletingEntry'));
     }
   };
 
@@ -144,8 +146,17 @@ const ExpensesIncomePage: React.FC = () => {
     setShowForm(false);
   };
 
-  const expenseCategories = ['Rent', 'Utilities', 'Supplies', 'Maintenance', 'Insurance', 'Salary', 'Transportation', 'Other'];
-  const incomeCategories = ['Service', 'Sales', 'Other Income'];
+  const expenseCategories = [
+    t('rentCategory'),
+    t('utilitiesCategory'),
+    t('suppliesCategory'),
+    t('maintenanceCategory'),
+    t('insuranceCategory'),
+    t('salaryCategory'),
+    t('transportationCategory'),
+    t('otherCategory'),
+  ];
+  const incomeCategories = [t('serviceCategory'), t('salesCategory'), t('otherIncomeCategory')];
 
   const displayItems = activeTab === 'expenses' ? expenses : incomeEntries;
   const categories = activeTab === 'expenses' ? expenseCategories : incomeCategories;
@@ -156,12 +167,12 @@ const ExpensesIncomePage: React.FC = () => {
     <div className="p-8 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Expenses & Income</h1>
-          <p className="text-muted-foreground mt-1">Track additional business expenses and income</p>
+          <h1 className="text-3xl font-bold">{t('expensesIncome')}</h1>
+          <p className="text-muted-foreground mt-1">{t('expensesIncomeDesc')}</p>
         </div>
         <Button onClick={() => setShowForm(!showForm)} className="gap-2">
           <Plus className="w-4 h-4" />
-          Add {activeTab === 'expenses' ? 'Expense' : 'Income'}
+          {activeTab === 'expenses' ? t('addExpense') : t('addIncome')}
         </Button>
       </div>
 
@@ -170,37 +181,39 @@ const ExpensesIncomePage: React.FC = () => {
           variant={activeTab === 'expenses' ? 'default' : 'outline'}
           onClick={() => { setActiveTab('expenses'); setShowForm(false); }}
         >
-          Expenses
+          {t('expense')}
         </Button>
         <Button
           variant={activeTab === 'income' ? 'default' : 'outline'}
           onClick={() => { setActiveTab('income'); setShowForm(false); }}
         >
-          Income
+          {t('income')}
         </Button>
       </div>
 
       {showForm && (
         <Card className="p-6">
           <h2 className="text-lg font-semibold mb-4">
-            {editingId ? 'Edit' : 'Add'} {activeTab === 'expenses' ? 'Expense' : 'Income'}
+            {editingId
+              ? activeTab === 'expenses' ? t('editExpense') : t('editIncome')
+              : activeTab === 'expenses' ? t('addExpense') : t('addIncome')}
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Category *</label>
+              <label className="block text-sm font-medium mb-1">{t('category')} *</label>
               <select
                 value={formData.category}
                 onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                 className="w-full px-3 py-2 border border-input rounded-md bg-background"
               >
-                <option value="">Select category</option>
+                <option value="">{t('selectCategory')}</option>
                 {categories.map(cat => (
                   <option key={cat} value={cat}>{cat}</option>
                 ))}
               </select>
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Amount (₱) *</label>
+              <label className="block text-sm font-medium mb-1">{t('amount')} (₱) *</label>
               <Input
                 type="number"
                 value={formData.amount}
@@ -211,7 +224,7 @@ const ExpensesIncomePage: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Date *</label>
+              <label className="block text-sm font-medium mb-1">{t('date')} *</label>
               <Input
                 type="date"
                 value={formData.date}
@@ -219,34 +232,34 @@ const ExpensesIncomePage: React.FC = () => {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1">Payment Method</label>
+              <label className="block text-sm font-medium mb-1">{t('paymentMethod')}</label>
               <Input
                 value={formData.payment_method}
                 onChange={(e) => setFormData({ ...formData, payment_method: e.target.value })}
-                placeholder="Cash, Check, Card..."
+                placeholder={t('paymentMethod')}
               />
             </div>
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium mb-1">Description *</label>
+              <label className="block text-sm font-medium mb-1">{t('description')} *</label>
               <Input
                 value={formData.description}
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="Brief description"
+                placeholder={t('briefDescription')}
               />
             </div>
             <div className="md:col-span-2">
-              <label className="block text-sm font-medium mb-1">Notes</label>
+              <label className="block text-sm font-medium mb-1">{t('notes')}</label>
               <textarea
                 value={formData.notes}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                placeholder="Additional notes"
+                placeholder={t('additionalNotes')}
                 className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground resize-none"
                 rows={2}
               />
             </div>
             <div className="md:col-span-2 flex gap-2">
-              <Button onClick={handleSubmit}>Save</Button>
-              <Button variant="outline" onClick={resetForm}>Cancel</Button>
+              <Button onClick={handleSubmit}>{t('save')}</Button>
+              <Button variant="outline" onClick={resetForm}>{t('cancel')}</Button>
             </div>
           </div>
         </Card>
@@ -255,28 +268,32 @@ const ExpensesIncomePage: React.FC = () => {
       <Card>
         <div className="p-6 border-b border-border flex justify-between items-center">
           <h2 className="text-lg font-semibold">
-            {activeTab === 'expenses' ? 'Expenses' : 'Income'} Summary
+            {activeTab === 'expenses' ? t('expensesSummary') : t('incomeSummary')}
           </h2>
           <div className="text-right">
-            <p className="text-sm text-muted-foreground">Total {activeTab === 'expenses' ? 'Expenses' : 'Income'}</p>
-            <p className="text-2xl font-bold text-primary">₱{totalAmount.toFixed(2)}</p>
+            <p className="text-sm text-muted-foreground">
+              {activeTab === 'expenses' ? t('totalExpenses') : t('totalIncome')}
+            </p>
+            <p className="text-2xl font-bold text-primary">{formatCurrency(totalAmount)}</p>
           </div>
         </div>
 
         {loading ? (
-          <div className="p-8 text-center text-muted-foreground">Loading...</div>
+          <div className="p-8 text-center text-muted-foreground">{t('loading')}</div>
         ) : displayItems.length === 0 ? (
-          <div className="p-8 text-center text-muted-foreground">No {activeTab} recorded yet.</div>
+          <div className="p-8 text-center text-muted-foreground">
+            {activeTab === 'expenses' ? t('noExpensesRecorded') : t('noIncomeRecorded')}
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-muted/50 border-b border-border">
                 <tr>
-                  <th className="px-6 py-3 text-left text-sm font-semibold">Category</th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold">Description</th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold">Date</th>
-                  <th className="px-6 py-3 text-right text-sm font-semibold">Amount</th>
-                  <th className="px-6 py-3 text-right text-sm font-semibold">Actions</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold">{t('category')}</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold">{t('description')}</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold">{t('date')}</th>
+                  <th className="px-6 py-3 text-right text-sm font-semibold">{t('amount')}</th>
+                  <th className="px-6 py-3 text-right text-sm font-semibold">{t('actions')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -288,9 +305,9 @@ const ExpensesIncomePage: React.FC = () => {
                       {item.payment_method && <div className="text-xs text-muted-foreground">{item.payment_method}</div>}
                     </td>
                     <td className="px-6 py-4 text-sm text-muted-foreground">
-                      {new Date(activeTab === 'expenses' ? (item as Expense).expense_date : (item as IncomeEntry).income_date).toLocaleDateString()}
+                      {formatDate(activeTab === 'expenses' ? (item as Expense).expense_date : (item as IncomeEntry).income_date)}
                     </td>
-                    <td className="px-6 py-4 text-sm text-right font-semibold">₱{item.amount.toFixed(2)}</td>
+                    <td className="px-6 py-4 text-sm text-right font-semibold">{formatCurrency(item.amount)}</td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
                         <Button

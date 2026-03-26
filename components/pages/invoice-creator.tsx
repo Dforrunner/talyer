@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus, Trash2, Eye } from 'lucide-react';
 import { db } from '@/lib/db';
+import { useLanguage } from '@/hooks/use-language';
 import { safePdfGenerate } from '@/lib/electron-api';
 import InvoicePreview from '@/components/invoice-preview';
 
@@ -42,6 +43,7 @@ interface Invoice {
 }
 
 const InvoiceCreatorPage: React.FC = () => {
+  const { formatCurrency, t } = useLanguage();
   const [products, setProducts] = useState<Product[]>([]);
   const [businessSettings, setBusinessSettings] = useState<any>(null);
   const [showPreview, setShowPreview] = useState(false);
@@ -121,7 +123,7 @@ const InvoiceCreatorPage: React.FC = () => {
     const newItem: InvoiceItem = {
       id: Date.now().toString(),
       type: 'labor',
-      description: 'Labor Work',
+      description: t('laborWork'),
       quantity: 1,
       unit_price: 0,
       amount: 0,
@@ -188,12 +190,12 @@ const InvoiceCreatorPage: React.FC = () => {
 
   const handleSaveInvoice = async () => {
     if (!invoice.customer_name.trim()) {
-      alert('Please enter customer name');
+      alert(t('pleaseEnterCustomerName'));
       return;
     }
 
     if (invoice.items.length === 0) {
-      alert('Please add at least one item');
+      alert(t('pleaseAddAtLeastOneItem'));
       return;
     }
 
@@ -288,7 +290,7 @@ const InvoiceCreatorPage: React.FC = () => {
         console.error('[InvoiceCreator] Error generating PDF:', error);
       }
 
-      alert(`Invoice ${generatedInvoiceNumber} created successfully!`);
+      alert(`${t('invoiceLabel')} ${generatedInvoiceNumber} ${t('invoiceCreatedSuccess')}`);
       
       setInvoice({
         customer_name: '',
@@ -307,14 +309,10 @@ const InvoiceCreatorPage: React.FC = () => {
       await loadData();
     } catch (error) {
       console.error('Error saving invoice:', error);
-      alert('Error saving invoice');
+      alert(t('errorSavingInvoice'));
     } finally {
       setSaving(false);
     }
-  };
-
-  const formatCurrency = (amount: number) => {
-    return `₱${amount.toFixed(2)}`;
   };
 
   return (
@@ -322,8 +320,8 @@ const InvoiceCreatorPage: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Create Invoice</h1>
-          <p className="text-muted-foreground mt-1">Fill in the form below to create an invoice</p>
+          <h1 className="text-3xl font-bold text-foreground">{t('createInvoice')}</h1>
+          <p className="text-muted-foreground mt-1">{t('createInvoicePageDesc')}</p>
         </div>
         <Button
           variant="outline"
@@ -331,7 +329,7 @@ const InvoiceCreatorPage: React.FC = () => {
           className="gap-2"
         >
           <Eye className="w-4 h-4" />
-          Preview
+          {t('preview')}
         </Button>
       </div>
 
@@ -348,7 +346,7 @@ const InvoiceCreatorPage: React.FC = () => {
                   {businessSettings?.logo_path && (
                     <img 
                       src={businessSettings.logo_path} 
-                      alt="Logo" 
+                      alt={t('logo')} 
                       className="max-w-[120px] max-h-[80px] mb-3"
                     />
                   )}
@@ -360,16 +358,16 @@ const InvoiceCreatorPage: React.FC = () => {
                     {(businessSettings?.city || businessSettings?.postal_code) && (
                       <div>{businessSettings.city} {businessSettings.postal_code}</div>
                     )}
-                    {businessSettings?.phone && <div>Phone: {businessSettings.phone}</div>}
-                    {businessSettings?.email && <div>Email: {businessSettings.email}</div>}
+                    {businessSettings?.phone && <div>{t('phone')}: {businessSettings.phone}</div>}
+                    {businessSettings?.email && <div>{t('email')}: {businessSettings.email}</div>}
                   </div>
                 </div>
 
                 <div className="text-right">
-                  <div className="text-4xl font-bold text-gray-800 mb-3">INVOICE</div>
+                  <div className="text-4xl font-bold text-gray-800 mb-3">{t('invoiceLabel').toUpperCase()}</div>
                   <div className="space-y-1 text-sm">
                     <div>
-                      <span className="font-semibold">Invoice Date:</span>
+                      <span className="font-semibold">{t('invoiceDate')}:</span>
                       <input
                         type="date"
                         value={invoice.invoice_date}
@@ -378,7 +376,7 @@ const InvoiceCreatorPage: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <span className="font-semibold">Due Date:</span>
+                      <span className="font-semibold">{t('dueDate')}:</span>
                       <input
                         type="date"
                         value={invoice.due_date}
@@ -395,33 +393,33 @@ const InvoiceCreatorPage: React.FC = () => {
             <div className="grid grid-cols-2 gap-8">
               <div>
                 <div className="text-sm font-semibold text-gray-800 mb-3 border-b-2 border-gray-300 pb-2">
-                  BILL TO:
+                  {t('billTo').toUpperCase()}:
                 </div>
                 <div className="space-y-3">
                   <div>
-                    <label className="text-xs font-semibold text-gray-600">Customer Name *</label>
+                    <label className="text-xs font-semibold text-gray-600">{t('customerName')} *</label>
                     <Input
                       value={invoice.customer_name}
                       onChange={(e) => handleInvoiceChange('customer_name', e.target.value)}
-                      placeholder="John Doe"
+                      placeholder={t('customerName')}
                       className="mt-1"
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-semibold text-gray-600">Phone</label>
+                    <label className="text-xs font-semibold text-gray-600">{t('phone')}</label>
                     <Input
                       value={invoice.customer_phone}
                       onChange={(e) => handleInvoiceChange('customer_phone', e.target.value)}
-                      placeholder="(Optional)"
+                      placeholder={t('optional')}
                       className="mt-1"
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-semibold text-gray-600">Email</label>
+                    <label className="text-xs font-semibold text-gray-600">{t('email')}</label>
                     <Input
                       value={invoice.customer_email}
                       onChange={(e) => handleInvoiceChange('customer_email', e.target.value)}
-                      placeholder="(Optional)"
+                      placeholder={t('optional')}
                       type="email"
                       className="mt-1"
                     />
@@ -431,22 +429,22 @@ const InvoiceCreatorPage: React.FC = () => {
 
               {/* Summary Sidebar */}
               <div className="bg-gray-50 p-6 rounded-lg border border-gray-200">
-                <div className="text-sm font-semibold text-gray-800 mb-4">INVOICE SUMMARY</div>
+                <div className="text-sm font-semibold text-gray-800 mb-4">{t('invoiceSummary').toUpperCase()}</div>
                 <div className="space-y-3">
                   <div className="flex justify-between text-sm">
-                    <span className="text-gray-600">Subtotal:</span>
+                    <span className="text-gray-600">{t('subtotal')}:</span>
                     <span className="font-semibold">{formatCurrency(invoice.subtotal)}</span>
                   </div>
                   
                   {invoice.tax_rate > 0 && (
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-600">Tax ({invoice.tax_rate}%):</span>
+                      <span className="text-gray-600">{t('taxLabel')} ({invoice.tax_rate}%):</span>
                       <span className="font-semibold">{formatCurrency(invoice.tax_amount)}</span>
                     </div>
                   )}
 
                   <div className="border-t-2 border-gray-300 pt-3 flex justify-between">
-                    <span className="font-bold text-gray-800">TOTAL:</span>
+                    <span className="font-bold text-gray-800">{t('total').toUpperCase()}:</span>
                     <span className="text-xl font-bold text-green-600">{formatCurrency(invoice.total)}</span>
                   </div>
 
@@ -456,7 +454,7 @@ const InvoiceCreatorPage: React.FC = () => {
                       onClick={() => handleInvoiceChange('tax_rate', businessSettings.vat_rate)}
                       className="w-full mt-4"
                     >
-                      Enable Tax ({businessSettings.vat_rate}%)
+                      {t('enableTax')} ({businessSettings.vat_rate}%)
                     </Button>
                   )}
                 </div>
@@ -466,17 +464,17 @@ const InvoiceCreatorPage: React.FC = () => {
             {/* Items Table */}
             <div>
               <div className="text-sm font-semibold text-gray-800 mb-3 border-b-2 border-gray-300 pb-2">
-                ITEMS & SERVICES
+                {t('itemsServices').toUpperCase()}
               </div>
               
               {invoice.items.length > 0 ? (
                 <div className="space-y-3 mb-4">
                   {/* Table Header */}
                   <div className="grid grid-cols-12 gap-3 p-3 bg-gray-100 rounded font-semibold text-sm text-gray-700">
-                    <div className="col-span-5">Description</div>
-                    <div className="col-span-2">Qty</div>
-                    <div className="col-span-2">Unit Price</div>
-                    <div className="col-span-2">Amount</div>
+                    <div className="col-span-5">{t('description')}</div>
+                    <div className="col-span-2">{t('quantityShort')}</div>
+                    <div className="col-span-2">{t('unitPrice')}</div>
+                    <div className="col-span-2">{t('amount')}</div>
                     <div className="col-span-1"></div>
                   </div>
 
@@ -490,7 +488,7 @@ const InvoiceCreatorPage: React.FC = () => {
                             onChange={(e) => handleItemChange(item.id, 'product_id', e.target.value ? parseInt(e.target.value) : undefined)}
                             className="w-full px-2 py-1 border border-gray-300 rounded text-sm"
                           >
-                            <option value="">Select product</option>
+                            <option value="">{t('selectProduct')}</option>
                             {products.map(p => (
                               <option key={p.id} value={p.id}>
                                 {p.name}
@@ -501,7 +499,7 @@ const InvoiceCreatorPage: React.FC = () => {
                           <Input
                             value={item.description}
                             onChange={(e) => handleItemChange(item.id, 'description', e.target.value)}
-                            placeholder="Labor description"
+                            placeholder={t('laborDescription')}
                             className="text-sm"
                           />
                         )}
@@ -548,7 +546,7 @@ const InvoiceCreatorPage: React.FC = () => {
                 </div>
               ) : (
                 <div className="p-6 text-center text-gray-500 bg-gray-50 rounded">
-                  No items added yet
+                  {t('noItemsAddedYet')}
                 </div>
               )}
 
@@ -560,7 +558,7 @@ const InvoiceCreatorPage: React.FC = () => {
                   className="flex-1 gap-2"
                 >
                   <Plus className="w-4 h-4" />
-                  Add Product
+                  {t('addProduct')}
                 </Button>
                 <Button
                   type="button"
@@ -569,18 +567,18 @@ const InvoiceCreatorPage: React.FC = () => {
                   className="flex-1 gap-2"
                 >
                   <Plus className="w-4 h-4" />
-                  Add Labor
+                  {t('addLabor')}
                 </Button>
               </div>
             </div>
 
             {/* Notes */}
             <div>
-              <label className="text-sm font-semibold text-gray-800 mb-2 block">Additional Notes</label>
+              <label className="text-sm font-semibold text-gray-800 mb-2 block">{t('additionalNotes')}</label>
               <textarea
                 value={invoice.notes}
                 onChange={(e) => handleInvoiceChange('notes', e.target.value)}
-                placeholder="Optional notes for the customer..."
+                placeholder={t('notesOptional')}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm resize-none"
                 rows={3}
               />
@@ -593,7 +591,7 @@ const InvoiceCreatorPage: React.FC = () => {
                 disabled={saving || invoice.items.length === 0}
                 className="flex-1"
               >
-                {saving ? 'Creating...' : 'Create Invoice'}
+                {saving ? t('createInvoiceLoading') : t('createInvoice')}
               </Button>
               <Button
                 type="button"
@@ -601,7 +599,7 @@ const InvoiceCreatorPage: React.FC = () => {
                 onClick={() => setShowPreview(true)}
                 className="flex-1"
               >
-                View Preview
+                {t('viewPreview')}
               </Button>
             </div>
           </div>

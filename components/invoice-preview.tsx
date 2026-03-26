@@ -3,6 +3,7 @@
 import { Button } from '@/components/ui/button';
 import { X, Printer } from 'lucide-react';
 import { useRef } from 'react';
+import { useLanguage } from '@/hooks/use-language';
 
 interface InvoiceItem {
   id: string;
@@ -22,7 +23,10 @@ interface InvoicePreviewProps {
 }
 
 const InvoicePreview: React.FC<InvoicePreviewProps> = ({ invoice, businessSettings, onClose }) => {
+  const { formatCurrency, formatDate, t } = useLanguage();
   const printRef = useRef<HTMLDivElement>(null);
+  const formatMoney = (amount: number) =>
+    formatCurrency(amount, businessSettings?.currency || 'PHP');
 
   const handlePrint = () => {
     if (printRef.current) {
@@ -37,21 +41,12 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({ invoice, businessSettin
     }
   };
 
-  const formatCurrency = (amount: number) => {
-    const currency = businessSettings?.currency || 'PHP';
-    const symbols: any = {
-      PHP: '₱'
-    };
-    const symbol = symbols[currency] || '₱';
-    return `${symbol}${amount.toFixed(2)}`;
-  };
-
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-lg shadow-lg max-w-4xl w-full h-[90vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
-          <h2 className="text-lg font-semibold">Invoice Preview</h2>
+          <h2 className="text-lg font-semibold">{t('invoicePreview')}</h2>
           <div className="flex items-center gap-2">
             <Button
               onClick={handlePrint}
@@ -60,7 +55,7 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({ invoice, businessSettin
               className="gap-2"
             >
               <Printer className="w-4 h-4" />
-              Print
+              {t('print')}
             </Button>
             <button
               onClick={onClose}
@@ -94,13 +89,13 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({ invoice, businessSettin
                   {businessSettings?.logo_path && (
                     <img
                       src={businessSettings.logo_path}
-                      alt="Logo"
+                      alt={t('logo')}
                       style={{ maxWidth: '120px', maxHeight: '80px', marginBottom: '10px' }}
                     />
                   )}
                   {/* Business Name */}
                   <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#2c3e50', marginBottom: '5px' }}>
-                    {businessSettings?.business_name || 'Your Shop'}
+                    {businessSettings?.business_name || t('shopManager')}
                   </div>
                   {/* Business Details */}
                   <div style={{ fontSize: '12px', color: '#666', lineHeight: '1.6' }}>
@@ -113,13 +108,13 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({ invoice, businessSettin
                       </div>
                     )}
                     {businessSettings?.phone && (
-                      <div>Phone: {businessSettings.phone}</div>
+                      <div>{t('phone')}: {businessSettings.phone}</div>
                     )}
                     {businessSettings?.email && (
-                      <div>Email: {businessSettings.email}</div>
+                      <div>{t('email')}: {businessSettings.email}</div>
                     )}
                     {businessSettings?.tax_id && (
-                      <div>Tax ID: {businessSettings.tax_id}</div>
+                      <div>{t('taxId')}: {businessSettings.tax_id}</div>
                     )}
                   </div>
                 </div>
@@ -127,16 +122,16 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({ invoice, businessSettin
                 {/* Invoice Title and Number */}
                 <div style={{ textAlign: 'right' }}>
                   <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#2c3e50', marginBottom: '10px' }}>
-                    INVOICE
+                    {t('invoiceLabel').toUpperCase()}
                   </div>
                   <div style={{ fontSize: '13px', marginBottom: '4px' }}>
-                    <strong>Invoice #:</strong> {invoice.invoice_number}
+                    <strong>{t('invoiceNumber')}:</strong> {invoice.invoice_number}
                   </div>
                   <div style={{ fontSize: '13px', marginBottom: '4px' }}>
-                    <strong>Date:</strong> {new Date(invoice.invoice_date).toLocaleDateString()}
+                    <strong>{t('date')}:</strong> {formatDate(invoice.invoice_date)}
                   </div>
                   <div style={{ fontSize: '13px' }}>
-                    <strong>Due Date:</strong> {new Date(invoice.due_date).toLocaleDateString()}
+                    <strong>{t('dueDate')}:</strong> {formatDate(invoice.due_date)}
                   </div>
                 </div>
               </div>
@@ -145,19 +140,19 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({ invoice, businessSettin
             {/* Bill To Section */}
             <div style={{ marginBottom: '30px' }}>
               <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#2c3e50', marginBottom: '8px' }}>
-                BILL TO:
+                {t('billTo').toUpperCase()}:
               </div>
               <div style={{ fontSize: '15px', fontWeight: 'bold', marginBottom: '4px' }}>
                 {invoice.customer_name}
               </div>
               {invoice.customer_phone && (
                 <div style={{ fontSize: '12px', color: '#666' }}>
-                  Phone: {invoice.customer_phone}
+                  {t('phone')}: {invoice.customer_phone}
                 </div>
               )}
               {invoice.customer_email && (
                 <div style={{ fontSize: '12px', color: '#666' }}>
-                  Email: {invoice.customer_email}
+                  {t('email')}: {invoice.customer_email}
                 </div>
               )}
             </div>
@@ -167,16 +162,16 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({ invoice, businessSettin
               <thead>
                 <tr style={{ backgroundColor: '#f5f5f5', borderBottom: '2px solid #2c3e50' }}>
                   <th style={{ padding: '10px 8px', textAlign: 'left', fontWeight: 'bold', borderBottom: '2px solid #2c3e50' }}>
-                    Description
+                    {t('description')}
                   </th>
                   <th style={{ padding: '10px 8px', textAlign: 'center', fontWeight: 'bold', width: '80px', borderBottom: '2px solid #2c3e50' }}>
-                    Qty
+                    {t('quantityShort')}
                   </th>
                   <th style={{ padding: '10px 8px', textAlign: 'right', fontWeight: 'bold', width: '100px', borderBottom: '2px solid #2c3e50' }}>
-                    Unit Price
+                    {t('unitPrice')}
                   </th>
                   <th style={{ padding: '10px 8px', textAlign: 'right', fontWeight: 'bold', width: '100px', borderBottom: '2px solid #2c3e50' }}>
-                    Amount
+                    {t('amount')}
                   </th>
                 </tr>
               </thead>
@@ -190,10 +185,10 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({ invoice, businessSettin
                       {item.quantity}
                     </td>
                     <td style={{ padding: '10px 8px', textAlign: 'right' }}>
-                      {formatCurrency(item.unit_price)}
+                      {formatMoney(item.unit_price)}
                     </td>
                     <td style={{ padding: '10px 8px', textAlign: 'right', fontWeight: 'bold' }}>
-                      {formatCurrency(item.amount)}
+                      {formatMoney(item.amount)}
                     </td>
                   </tr>
                 ))}
@@ -204,14 +199,14 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({ invoice, businessSettin
             <div style={{ float: 'right', width: '280px', marginBottom: '20px' }}>
               <div style={{ borderTop: '1px solid #ddd', paddingTop: '10px', marginBottom: '8px' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                  <span>Subtotal:</span>
-                  <span>{formatCurrency(invoice.subtotal)}</span>
+                  <span>{t('subtotal')}:</span>
+                  <span>{formatMoney(invoice.subtotal)}</span>
                 </div>
 
                 {invoice.tax_rate > 0 && (
                   <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <span>Tax/VAT ({invoice.tax_rate}%):</span>
-                    <span>{formatCurrency(invoice.tax_amount)}</span>
+                    <span>{t('tax')} ({invoice.tax_rate}%):</span>
+                    <span>{formatMoney(invoice.tax_amount)}</span>
                   </div>
                 )}
 
@@ -226,8 +221,8 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({ invoice, businessSettin
                     color: '#2c3e50'
                   }}
                 >
-                  <span>TOTAL:</span>
-                  <span>{formatCurrency(invoice.total)}</span>
+                  <span>{t('total').toUpperCase()}:</span>
+                  <span>{formatMoney(invoice.total)}</span>
                 </div>
               </div>
             </div>
@@ -238,7 +233,7 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({ invoice, businessSettin
             {/* Notes */}
             {invoice.notes && (
               <div style={{ marginTop: '20px', paddingTop: '20px', borderTop: '1px solid #ddd' }}>
-                <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>Notes:</div>
+                <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>{t('notes')}:</div>
                 <div style={{ fontSize: '12px', color: '#666', whiteSpace: 'pre-wrap' }}>
                   {invoice.notes}
                 </div>
@@ -247,7 +242,7 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({ invoice, businessSettin
 
             {/* Footer */}
             <div style={{ marginTop: '30px', paddingTop: '20px', borderTop: '1px solid #ddd', textAlign: 'center', fontSize: '11px', color: '#999' }}>
-              <div>Thank you for your business!</div>
+              <div>{t('thankYou')}</div>
             </div>
           </div>
         </div>

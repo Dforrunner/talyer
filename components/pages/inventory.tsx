@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus, Edit2, Trash2, AlertTriangle } from 'lucide-react';
 import { db } from '@/lib/db';
+import { useLanguage } from '@/hooks/use-language';
 import ProductModal from '@/components/modals/product-modal';
 
 interface Product {
@@ -26,6 +27,7 @@ interface InventoryPageProps {
 }
 
 const InventoryPage: React.FC<InventoryPageProps> = ({ onLowStockUpdate }) => {
+  const { formatCurrency, t } = useLanguage();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -68,7 +70,7 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onLowStockUpdate }) => {
   };
 
   const handleDeleteProduct = async (id: number) => {
-    if (window.confirm('Are you sure you want to delete this product?')) {
+    if (window.confirm(t('deleteProductConfirm'))) {
       try {
         await db.run('DELETE FROM products WHERE id = ?', [id]);
         await loadProducts();
@@ -97,12 +99,12 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onLowStockUpdate }) => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Inventory Management</h1>
-          <p className="text-muted-foreground mt-1">Manage your products and stock levels</p>
+          <h1 className="text-3xl font-bold text-foreground">{t('inventoryManagement')}</h1>
+          <p className="text-muted-foreground mt-1">{t('manageProductsStock')}</p>
         </div>
         <Button onClick={handleAddProduct} className="gap-2">
           <Plus className="w-4 h-4" />
-          Add Product
+          {t('addProduct')}
         </Button>
       </div>
 
@@ -110,7 +112,7 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onLowStockUpdate }) => {
       <Card className="p-4">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Input
-            placeholder="Search by name or SKU..."
+            placeholder={t('searchByNameOrSku')}
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -121,12 +123,12 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onLowStockUpdate }) => {
           >
             {categories.map(cat => (
               <option key={cat} value={cat}>
-                {cat === 'all' ? 'All Categories' : cat}
+                {cat === 'all' ? t('allCategories') : cat}
               </option>
             ))}
           </select>
           <div className="text-sm text-muted-foreground flex items-center">
-            Showing {filteredProducts.length} of {products.length} products
+            {t('showing')} {filteredProducts.length} {t('of')} {products.length} {t('products')}
           </div>
         </div>
       </Card>
@@ -137,26 +139,26 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onLowStockUpdate }) => {
           <table className="w-full">
             <thead className="bg-muted/50 border-b border-border">
               <tr>
-                <th className="px-6 py-3 text-left text-sm font-semibold">Product Name</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold">SKU</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold">Category</th>
-                <th className="px-6 py-3 text-right text-sm font-semibold">Cost Price</th>
-                <th className="px-6 py-3 text-right text-sm font-semibold">Selling Price</th>
-                <th className="px-6 py-3 text-right text-sm font-semibold">Stock</th>
-                <th className="px-6 py-3 text-right text-sm font-semibold">Actions</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold">{t('productName')}</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold">{t('sku')}</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold">{t('category')}</th>
+                <th className="px-6 py-3 text-right text-sm font-semibold">{t('costPrice')}</th>
+                <th className="px-6 py-3 text-right text-sm font-semibold">{t('sellingPrice')}</th>
+                <th className="px-6 py-3 text-right text-sm font-semibold">{t('quantityInStock')}</th>
+                <th className="px-6 py-3 text-right text-sm font-semibold">{t('actions')}</th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
                   <td colSpan={7} className="px-6 py-8 text-center text-muted-foreground">
-                    Loading products...
+                    {t('loadingProducts')}
                   </td>
                 </tr>
               ) : filteredProducts.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-6 py-8 text-center text-muted-foreground">
-                    No products found. Click "Add Product" to get started.
+                    {t('noProductsStart')}
                   </td>
                 </tr>
               ) : (
@@ -180,8 +182,8 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onLowStockUpdate }) => {
                       </td>
                       <td className="px-6 py-4 text-sm text-muted-foreground">{product.sku}</td>
                       <td className="px-6 py-4 text-sm">{product.category}</td>
-                      <td className="px-6 py-4 text-sm text-right">₱{product.cost_price.toFixed(2)}</td>
-                      <td className="px-6 py-4 text-sm text-right font-semibold">₱{product.selling_price.toFixed(2)}</td>
+                      <td className="px-6 py-4 text-sm text-right">{formatCurrency(product.cost_price)}</td>
+                      <td className="px-6 py-4 text-sm text-right font-semibold">{formatCurrency(product.selling_price)}</td>
                       <td className={`px-6 py-4 text-sm text-right font-semibold ${isLowStock ? 'text-destructive' : ''}`}>
                         {product.quantity_in_stock} {product.unit}
                       </td>

@@ -4,9 +4,11 @@ import { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Download, Upload, AlertCircle, CheckCircle } from 'lucide-react';
+import { useLanguage } from '@/hooks/use-language';
 import { safeDataExport, safeDataImport } from '@/lib/electron-api';
 
 const DataManagementPage: React.FC = () => {
+  const { t } = useLanguage();
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -19,7 +21,7 @@ const DataManagementPage: React.FC = () => {
 
       const jsonData = await safeDataExport();
       if (!jsonData) {
-        throw new Error('Failed to export data');
+        throw new Error(t('exportNoData'));
       }
 
       // Create blob and download
@@ -33,10 +35,10 @@ const DataManagementPage: React.FC = () => {
       document.body.removeChild(link);
       window.URL.revokeObjectURL(url);
 
-      setMessage({ type: 'success', text: 'Data exported successfully!' });
+      setMessage({ type: 'success', text: t('exportSuccess') });
     } catch (error) {
       console.error('Export error:', error);
-      setMessage({ type: 'error', text: 'Failed to export data. Check console for details.' });
+      setMessage({ type: 'error', text: t('exportFailed') });
     } finally {
       setExporting(false);
     }
@@ -64,14 +66,17 @@ const DataManagementPage: React.FC = () => {
 
             const result = await safeDataImport(jsonData, shouldClearData);
             if (result?.success) {
-              setMessage({ type: 'success', text: 'Data imported successfully! Please refresh the application.' });
+              setMessage({ type: 'success', text: t('importSuccessRefresh') });
               setShouldClearData(false);
             } else {
-              throw new Error(result?.message || 'Import failed');
+              throw new Error(result?.message || t('importFailed'));
             }
           } catch (error) {
             console.error('Import error:', error);
-            setMessage({ type: 'error', text: `Failed to import data: ${error instanceof Error ? error.message : 'Unknown error'}` });
+            setMessage({
+              type: 'error',
+              text: `${t('importFailed')}: ${error instanceof Error ? error.message : t('unknownError')}`,
+            });
           } finally {
             setImporting(false);
           }
@@ -81,7 +86,7 @@ const DataManagementPage: React.FC = () => {
       input.click();
     } catch (error) {
       console.error('Import setup error:', error);
-      setMessage({ type: 'error', text: 'Failed to open file dialog' });
+      setMessage({ type: 'error', text: t('fileDialogFailed') });
       setImporting(false);
     }
   };
@@ -90,8 +95,8 @@ const DataManagementPage: React.FC = () => {
     <div className="p-8 space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-foreground">Data Management</h1>
-        <p className="text-muted-foreground mt-1">Export and import your business data for backup and migration</p>
+        <h1 className="text-3xl font-bold text-foreground">{t('dataManagement')}</h1>
+        <p className="text-muted-foreground mt-1">{t('dataManagementDesc')}</p>
       </div>
 
       {/* Messages */}
@@ -112,15 +117,12 @@ const DataManagementPage: React.FC = () => {
 
       {/* Export Section */}
       <Card className="p-6">
-        <h2 className="text-lg font-semibold mb-2">Export Data</h2>
-        <p className="text-sm text-muted-foreground mb-4">
-          Download all your business data including products, invoices, and settings as a JSON file. 
-          This creates a complete backup that can be imported on another computer.
-        </p>
+        <h2 className="text-lg font-semibold mb-2">{t('exportData')}</h2>
+        <p className="text-sm text-muted-foreground mb-4">{t('exportDataDesc')}</p>
         <div className="space-y-4">
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <p className="text-sm text-blue-800">
-              <strong>What gets exported:</strong> All products, invoices, customer information, business settings, and revenue history.
+              <strong>{t('exportWhatGetsExported')}</strong> {t('exportIncludesAll')}
             </p>
           </div>
           <Button
@@ -130,22 +132,19 @@ const DataManagementPage: React.FC = () => {
             size="lg"
           >
             <Download className="w-4 h-4" />
-            {exporting ? 'Exporting...' : 'Export All Data'}
+            {exporting ? t('exportingData') : t('exportAllData')}
           </Button>
         </div>
       </Card>
 
       {/* Import Section */}
       <Card className="p-6">
-        <h2 className="text-lg font-semibold mb-2">Import Data</h2>
-        <p className="text-sm text-muted-foreground mb-4">
-          Restore data from a previously exported JSON file. You can choose to merge with existing data 
-          or replace everything with the imported data.
-        </p>
+        <h2 className="text-lg font-semibold mb-2">{t('importData')}</h2>
+        <p className="text-sm text-muted-foreground mb-4">{t('importDataDesc')}</p>
         <div className="space-y-4">
           <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
             <p className="text-sm text-amber-800 mb-3">
-              <strong>Options:</strong>
+              <strong>{t('importOptions')}</strong>
             </p>
             <label className="flex items-center gap-2 cursor-pointer">
               <input
@@ -154,13 +153,13 @@ const DataManagementPage: React.FC = () => {
                 onChange={(e) => setShouldClearData(e.target.checked)}
                 className="w-4 h-4 rounded border-gray-300"
               />
-              <span className="text-sm text-amber-800">Replace all existing data (clear before importing)</span>
+              <span className="text-sm text-amber-800">{t('replaceAllExistingData')}</span>
             </label>
             {!shouldClearData && (
-              <p className="text-xs text-amber-700 mt-2">Unchecked: New data will be merged with existing records</p>
+              <p className="text-xs text-amber-700 mt-2">{t('mergeExistingDataInfo')}</p>
             )}
             {shouldClearData && (
-              <p className="text-xs text-amber-700 mt-2">Checked: All existing data will be deleted before import</p>
+              <p className="text-xs text-amber-700 mt-2">{t('clearExistingDataInfo')}</p>
             )}
           </div>
           <Button
@@ -171,38 +170,38 @@ const DataManagementPage: React.FC = () => {
             size="lg"
           >
             <Upload className="w-4 h-4" />
-            {importing ? 'Preparing...' : 'Import Data from File'}
+            {importing ? t('preparingImport') : t('importDataFromFile')}
           </Button>
         </div>
       </Card>
 
       {/* Instructions Section */}
       <Card className="p-6 bg-muted/30">
-        <h2 className="text-lg font-semibold mb-4">How to Transfer Data Between Computers</h2>
+        <h2 className="text-lg font-semibold mb-4">{t('transferDataBetweenComputers')}</h2>
         <div className="space-y-4 text-sm">
           <div>
-            <p className="font-semibold mb-2">Step 1: On the Original Computer</p>
+            <p className="font-semibold mb-2">{t('step1OriginalComputer')}</p>
             <ol className="list-decimal list-inside space-y-1 text-muted-foreground ml-2">
-              <li>Open the Data Management page (this page)</li>
-              <li>Click "Export All Data" button</li>
-              <li>Save the JSON file to a safe location or USB drive</li>
+              <li>{t('openDataManagementPage')}</li>
+              <li>{t('clickExportAllData')}</li>
+              <li>{t('saveJsonFile')}</li>
             </ol>
           </div>
           <div>
-            <p className="font-semibold mb-2">Step 2: On the New Computer</p>
+            <p className="font-semibold mb-2">{t('step2NewComputer')}</p>
             <ol className="list-decimal list-inside space-y-1 text-muted-foreground ml-2">
-              <li>Install the Mechanic Shop Invoicing application</li>
-              <li>Launch the application</li>
-              <li>Open the Data Management page</li>
-              <li>Click "Import Data from File"</li>
-              <li>Select the JSON file you saved from the original computer</li>
-              <li>If you want to replace all data, check the "Replace all existing data" option</li>
-              <li>Click Import and wait for confirmation</li>
+              <li>{t('installApplication')}</li>
+              <li>{t('launchApplication')}</li>
+              <li>{t('openDataManagementPage')}</li>
+              <li>{t('clickImportDataFromFile')}</li>
+              <li>{t('selectBackupFile')}</li>
+              <li>{t('ifReplaceCheckOption')}</li>
+              <li>{t('clickImportWaitConfirm')}</li>
             </ol>
           </div>
           <div className="bg-green-50 border border-green-200 rounded-lg p-3">
             <p className="text-green-800 text-sm">
-              <strong>Tip:</strong> Keep regular backups of your export file to prevent data loss.
+              <strong>{t('backupTip')}</strong> {t('keepRegularBackups')}
             </p>
           </div>
         </div>
