@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import LanguageToggle from '@/components/language-toggle';
+import { useLanguage } from '@/hooks/use-language';
 import {
   LayoutDashboard,
   Package,
@@ -25,15 +25,16 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ currentPage, onPageChange, lowStockCount }) => {
+  const { t } = useLanguage();
   const menuItems = [
-    { id: 'dashboard' as Page, label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'inventory' as Page, label: 'Inventory', icon: Package, badge: lowStockCount > 0 ? lowStockCount : null },
-    { id: 'invoices' as Page, label: 'Create Invoice', icon: PlusCircle, highlight: true },
-    { id: 'invoice-history' as Page, label: 'Invoice History', icon: History },
-    { id: 'revenue-tracking' as Page, label: 'Revenue Tracking', icon: TrendingUp },
-    { id: 'expenses-income' as Page, label: 'Expenses & Income', icon: DollarSign },
-    { id: 'business-settings' as Page, label: 'Business Settings', icon: Settings },
-    { id: 'data-management' as Page, label: 'Data Management', icon: Download },
+    { id: 'invoices' as Page, label: t('createInvoice'), icon: PlusCircle, highlight: true },
+    { id: 'dashboard' as Page, label: t('dashboard'), icon: LayoutDashboard },
+    { id: 'inventory' as Page, label: t('inventory'), icon: Package, badge: lowStockCount > 0 ? lowStockCount : null },
+    { id: 'invoice-history' as Page, label: t('invoiceHistory'), icon: History },
+    { id: 'revenue-tracking' as Page, label: t('revenueTracking'), icon: TrendingUp },
+    { id: 'expenses-income' as Page, label: t('expensesIncome'), icon: DollarSign },
+    { id: 'business-settings' as Page, label: t('businessSettings'), icon: Settings },
+    { id: 'data-management' as Page, label: t('dataManagement'), icon: Download },
   ];
 
   return (
@@ -46,7 +47,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, onPageChange, lowStockCo
           </div>
           <div>
             <h1 className="font-bold text-lg text-sidebar-foreground">Mechanic</h1>
-            <p className="text-xs text-sidebar-foreground/60">Shop Manager</p>
+            <p className="text-xs text-sidebar-foreground/60">{t('shopManager')}</p>
           </div>
         </div>
       </div>
@@ -54,10 +55,12 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, onPageChange, lowStockCo
       {/* Low Stock Alert */}
       {lowStockCount > 0 && (
         <div className="m-4 p-4 bg-destructive/10 border border-destructive/20 rounded-lg flex items-start gap-3">
-          <AlertTriangle className="w-5 h-5 text-destructive flex-shrink-0 mt-0.5" />
+          <AlertTriangle className="w-5 h-5 text-destructive shrink-0 mt-0.5" />
           <div className="flex-1">
-            <p className="font-semibold text-sm text-destructive">{lowStockCount} Items Low</p>
-            <p className="text-xs text-destructive/80">Check inventory soon</p>
+            <p className="font-semibold text-sm text-destructive">
+              {lowStockCount} {t('itemsLow')}
+            </p>
+            <p className="text-xs text-destructive/80">{t('checkInventorySoon')}</p>
           </div>
         </div>
       )}
@@ -78,7 +81,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, onPageChange, lowStockCo
                   : 'text-sidebar-foreground hover:bg-sidebar-accent/30'
               } ${item.highlight ? 'font-semibold' : ''}`}
             >
-              <div className="flex items-center gap-3">
+              <div className="flex items-center text-left gap-3">
                 <Icon className="w-5 h-5" />
                 <span>{item.label}</span>
               </div>
@@ -93,10 +96,8 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, onPageChange, lowStockCo
       </nav>
 
       {/* Footer */}
-      <div className="p-4 border-t border-sidebar-border">
-        <p className="text-xs text-sidebar-foreground/60 text-center">
-          Mechanic Shop v1.0
-        </p>
+      <div className="space-y-4 p-4 border-t border-sidebar-border">
+        <LanguageToggle />
       </div>
     </div>
   );

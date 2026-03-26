@@ -3,8 +3,9 @@
 import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { AlertTriangle, Package, FileText, TrendingUp, Plus, Settings, BarChart3 } from 'lucide-react';
+import { AlertTriangle, Package, FileText, TrendingUp, Plus, BarChart3 } from 'lucide-react';
 import { db } from '@/lib/db';
+import { useLanguage } from '@/hooks/use-language';
 
 interface DashboardPageProps {
   onLowStockUpdate?: (count: number) => void;
@@ -19,6 +20,7 @@ interface Stats {
 }
 
 const DashboardPage: React.FC<DashboardPageProps> = ({ onLowStockUpdate, onNavigate }) => {
+  const { formatCurrency, t } = useLanguage();
   const [stats, setStats] = useState<Stats>({
     totalProducts: 0,
     lowStockItems: 0,
@@ -99,7 +101,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ onLowStockUpdate, onNavig
         <p className="text-sm text-muted-foreground">{label}</p>
         <p className="text-2xl font-bold mt-1">{loading ? '...' : value}</p>
         {showAlert && value > 0 && (
-          <p className="text-xs text-destructive mt-2">⚠️ Action required</p>
+          <p className="text-xs text-destructive mt-2">⚠️ {t('actionRequired')}</p>
         )}
       </div>
     </Card>
@@ -109,42 +111,42 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ onLowStockUpdate, onNavig
     <div className="p-8 space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold text-foreground">Dashboard</h1>
-        <p className="text-muted-foreground mt-1">Welcome to your shop management system</p>
+        <h1 className="text-3xl font-bold text-foreground">{t('dashboard')}</h1>
+        <p className="text-muted-foreground mt-1">{t('welcomeMessage')}</p>
       </div>
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         <StatCard
           icon={Package}
-          label="Total Products"
+          label={t('totalProducts')}
           value={stats.totalProducts}
           color="bg-blue-100 text-blue-600"
         />
         <StatCard
           icon={AlertTriangle}
-          label="Low Stock Items"
+          label={t('lowStockItems')}
           value={stats.lowStockItems}
           color="bg-red-100 text-red-600"
           showAlert={true}
         />
         <StatCard
           icon={FileText}
-          label="Total Invoices"
+          label={t('totalInvoices')}
           value={stats.totalInvoices}
           color="bg-green-100 text-green-600"
         />
         <StatCard
           icon={TrendingUp}
-          label="Monthly Revenue"
-          value={`₱${stats.monthlyRevenue.toFixed(2)}`}
+          label={t('monthlyRevenue')}
+          value={formatCurrency(stats.monthlyRevenue)}
           color="bg-purple-100 text-purple-600"
         />
       </div>
 
       {/* Recent Activity */}
       <Card className="p-6">
-        <h2 className="text-lg font-bold mb-4">Quick Actions</h2>
+        <h2 className="text-lg font-bold mb-4">{t('quickActions')}</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <Button
             onClick={() => onNavigate?.('invoices')}
@@ -153,8 +155,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ onLowStockUpdate, onNavig
           >
             <Plus className="w-5 h-5" />
             <div className="text-left">
-              <p className="font-semibold text-sm">Create Invoice</p>
-              <p className="text-xs text-muted-foreground">Start a new invoice for your customers</p>
+              <p className="font-semibold text-sm">{t('createInvoice')}</p>
+              <p className="text-xs text-muted-foreground">{t('createInvoiceDesc')}</p>
             </div>
           </Button>
           <Button
@@ -164,8 +166,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ onLowStockUpdate, onNavig
           >
             <Package className="w-5 h-5" />
             <div className="text-left">
-              <p className="font-semibold text-sm">Manage Inventory</p>
-              <p className="text-xs text-muted-foreground">Update product stock and pricing</p>
+              <p className="font-semibold text-sm">{t('manageInventory')}</p>
+              <p className="text-xs text-muted-foreground">{t('manageInventoryDesc')}</p>
             </div>
           </Button>
           <Button
@@ -175,8 +177,8 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ onLowStockUpdate, onNavig
           >
             <BarChart3 className="w-5 h-5" />
             <div className="text-left">
-              <p className="font-semibold text-sm">View Reports</p>
-              <p className="text-xs text-muted-foreground">Check your revenue and profit</p>
+              <p className="font-semibold text-sm">{t('viewReports')}</p>
+              <p className="text-xs text-muted-foreground">{t('viewReportsDesc')}</p>
             </div>
           </Button>
         </div>

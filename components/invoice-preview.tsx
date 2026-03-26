@@ -40,14 +40,7 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({ invoice, businessSettin
   const formatCurrency = (amount: number) => {
     const currency = businessSettings?.currency || 'PHP';
     const symbols: any = {
-      PHP: '₱',
-      USD: '$',
-      EUR: '€',
-      GBP: '£',
-      CAD: '$',
-      AUD: '$',
-      JPY: '¥',
-      CHF: 'CHF'
+      PHP: '₱'
     };
     const symbol = symbols[currency] || '₱';
     return `${symbol}${amount.toFixed(2)}`;
@@ -79,7 +72,7 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({ invoice, businessSettin
         </div>
 
         {/* Preview Area - Simulates US Letter Paper */}
-        <div className="flex-1 overflow-auto bg-gray-100 flex items-center justify-center p-4">
+        <div className="flex-1 overflow-auto bg-gray-100 flex  justify-center p-4">
           <div
             ref={printRef}
             className="bg-white p-12"
@@ -255,7 +248,6 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({ invoice, businessSettin
             {/* Footer */}
             <div style={{ marginTop: '30px', paddingTop: '20px', borderTop: '1px solid #ddd', textAlign: 'center', fontSize: '11px', color: '#999' }}>
               <div>Thank you for your business!</div>
-              <div style={{ marginTop: '4px' }}>This is a computer-generated invoice. No signature required.</div>
             </div>
           </div>
         </div>

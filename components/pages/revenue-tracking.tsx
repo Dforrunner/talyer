@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { db } from '@/lib/db';
 import { TrendingUp, DollarSign, ShoppingCart, Percent } from 'lucide-react';
+import { useLanguage } from '@/hooks/use-language';
 
 interface MonthlyData {
   month: string;
@@ -26,6 +26,7 @@ interface YearlyStats {
 }
 
 const RevenueTrackingPage: React.FC = () => {
+  const { formatCurrency, formatMonth, language, t } = useLanguage();
   const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([]);
   const [yearlyStats, setYearlyStats] = useState<YearlyStats | null>(null);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
@@ -33,7 +34,7 @@ const RevenueTrackingPage: React.FC = () => {
 
   useEffect(() => {
     loadRevenueData();
-  }, [selectedYear]);
+  }, [selectedYear, language]);
 
   const loadRevenueData = async () => {
     try {
@@ -64,7 +65,7 @@ const RevenueTrackingPage: React.FC = () => {
         const costs = costsData?.total || 0;
 
         data.push({
-          month: new Date(selectedYear, month - 1).toLocaleString('default', { month: 'short' }),
+          month: formatMonth(new Date(selectedYear, month - 1, 1)),
           revenue: Math.round(revenue * 100) / 100,
           costs: Math.round(costs * 100) / 100,
           profit: Math.round((revenue - costs) * 100) / 100,
@@ -139,7 +140,7 @@ const RevenueTrackingPage: React.FC = () => {
   if (loading) {
     return (
       <div className="p-8">
-        <p className="text-muted-foreground">Loading revenue data...</p>
+        <p className="text-muted-foreground">{t('loading')}</p>
       </div>
     );
   }
@@ -149,8 +150,8 @@ const RevenueTrackingPage: React.FC = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Revenue Tracking</h1>
-          <p className="text-muted-foreground mt-1">Monitor your business performance</p>
+          <h1 className="text-3xl font-bold text-foreground">{t('revenueTracking')}</h1>
+          <p className="text-muted-foreground mt-1">{t('monitorBusinessPerformance')}</p>
         </div>
         <div>
           <select
@@ -175,37 +176,37 @@ const RevenueTrackingPage: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatCard
             icon={DollarSign}
-            label="Total Revenue"
-            value={`₱${yearlyStats.totalRevenue.toFixed(2)}`}
+            label={t('totalRevenue')}
+            value={formatCurrency(yearlyStats.totalRevenue)}
             color="bg-green-100 text-green-600"
           />
           <StatCard
             icon={DollarSign}
-            label="Additional Income"
-            value={`₱${yearlyStats.totalAdditionalIncome.toFixed(2)}`}
+            label={t('additionalIncome')}
+            value={formatCurrency(yearlyStats.totalAdditionalIncome)}
             color="bg-emerald-100 text-emerald-600"
           />
           <StatCard
             icon={ShoppingCart}
-            label="Total Costs"
-            value={`₱${yearlyStats.totalCosts.toFixed(2)}`}
+            label={t('totalCosts')}
+            value={formatCurrency(yearlyStats.totalCosts)}
             color="bg-orange-100 text-orange-600"
           />
           <StatCard
             icon={ShoppingCart}
-            label="Other Expenses"
-            value={`₱${yearlyStats.totalExpenses.toFixed(2)}`}
+            label={t('otherExpenses')}
+            value={formatCurrency(yearlyStats.totalExpenses)}
             color="bg-red-100 text-red-600"
           />
           <StatCard
             icon={TrendingUp}
-            label="Total Profit"
-            value={`₱${yearlyStats.totalProfit.toFixed(2)}`}
+            label={t('totalProfit')}
+            value={formatCurrency(yearlyStats.totalProfit)}
             color="bg-blue-100 text-blue-600"
           />
           <StatCard
             icon={Percent}
-            label="Profit Margin"
+            label={t('profitMargin')}
             value={`${yearlyStats.profitMargin.toFixed(1)}%`}
             color="bg-purple-100 text-purple-600"
           />
@@ -216,12 +217,12 @@ const RevenueTrackingPage: React.FC = () => {
       {yearlyStats && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <Card className="p-6">
-            <p className="text-sm text-muted-foreground mb-2">Total Invoices</p>
+            <p className="text-sm text-muted-foreground mb-2">{t('totalInvoices')}</p>
             <p className="text-3xl font-bold">{yearlyStats.totalInvoices}</p>
           </Card>
           <Card className="p-6">
-            <p className="text-sm text-muted-foreground mb-2">Average Invoice Value</p>
-            <p className="text-3xl font-bold">₱${yearlyStats.averageInvoice.toFixed(2)}</p>
+            <p className="text-sm text-muted-foreground mb-2">{t('averageInvoiceValue')}</p>
+            <p className="text-3xl font-bold">{formatCurrency(yearlyStats.averageInvoice)}</p>
           </Card>
         </div>
       )}
@@ -230,36 +231,36 @@ const RevenueTrackingPage: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Revenue vs Costs Chart */}
         <Card className="p-6">
-          <h2 className="text-lg font-semibold mb-4">Revenue vs Costs</h2>
+          <h2 className="text-lg font-semibold mb-4">{t('revenueVsCosts')}</h2>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={monthlyData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month" />
               <YAxis />
-              <Tooltip formatter={(value) => `₱${value.toFixed(2)}`} />
+              <Tooltip formatter={(value) => formatCurrency(Number(value ?? 0))} />
               <Legend />
-              <Bar dataKey="revenue" fill="#10b981" name="Revenue" />
-              <Bar dataKey="costs" fill="#f97316" name="Costs" />
+              <Bar dataKey="revenue" fill="#10b981" name={t('revenue')} />
+              <Bar dataKey="costs" fill="#f97316" name={t('costs')} />
             </BarChart>
           </ResponsiveContainer>
         </Card>
 
         {/* Monthly Profit Chart */}
         <Card className="p-6">
-          <h2 className="text-lg font-semibold mb-4">Monthly Profit Trend</h2>
+          <h2 className="text-lg font-semibold mb-4">{t('monthlyProfit')}</h2>
           <ResponsiveContainer width="100%" height={300}>
             <LineChart data={monthlyData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="month" />
               <YAxis />
-              <Tooltip formatter={(value) => `₱${value.toFixed(2)}`} />
+              <Tooltip formatter={(value) => formatCurrency(Number(value ?? 0))} />
               <Legend />
               <Line
                 type="monotone"
                 dataKey="profit"
                 stroke="#3b82f6"
                 strokeWidth={2}
-                name="Profit"
+                name={t('profit')}
               />
             </LineChart>
           </ResponsiveContainer>
@@ -269,20 +270,20 @@ const RevenueTrackingPage: React.FC = () => {
       {/* Profit Breakdown */}
       {yearlyStats && yearlyStats.totalRevenue > 0 && (
         <Card className="p-6">
-          <h2 className="text-lg font-semibold mb-4">Revenue Breakdown</h2>
+          <h2 className="text-lg font-semibold mb-4">{t('revenueBreakdown')}</h2>
           <div className="flex items-center justify-center">
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
                   data={[
-                    { name: 'Profit', value: yearlyStats.totalProfit },
-                    { name: 'Costs', value: yearlyStats.totalCosts },
+                    { name: t('profit'), value: yearlyStats.totalProfit },
+                    { name: t('costs'), value: yearlyStats.totalCosts },
                   ]}
                   cx="50%"
                   cy="50%"
                   labelLine={false}
                   label={({ name, value, percent }) =>
-                    `${name}: ₱${value.toFixed(2)} (${(percent * 100).toFixed(0)}%)`
+                    `${name}: ${formatCurrency(Number(value ?? 0))} (${(Number(percent ?? 0) * 100).toFixed(0)}%)`
                   }
                   outerRadius={80}
                   fill="#8884d8"
@@ -291,7 +292,7 @@ const RevenueTrackingPage: React.FC = () => {
                   <Cell fill="#10b981" />
                   <Cell fill="#f97316" />
                 </Pie>
-                <Tooltip formatter={(value) => `₱${value.toFixed(2)}`} />
+                <Tooltip formatter={(value) => formatCurrency(Number(value ?? 0))} />
               </PieChart>
             </ResponsiveContainer>
           </div>
@@ -301,17 +302,17 @@ const RevenueTrackingPage: React.FC = () => {
       {/* Monthly Breakdown Table */}
       <Card className="overflow-hidden">
         <div className="p-6 border-b border-border">
-          <h2 className="text-lg font-semibold">Monthly Breakdown</h2>
+          <h2 className="text-lg font-semibold">{t('monthlyBreakdown')}</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-muted/50 border-b border-border">
               <tr>
-                <th className="px-6 py-3 text-left text-sm font-semibold">Month</th>
-                <th className="px-6 py-3 text-right text-sm font-semibold">Revenue</th>
-                <th className="px-6 py-3 text-right text-sm font-semibold">Costs</th>
-                <th className="px-6 py-3 text-right text-sm font-semibold">Profit</th>
-                <th className="px-6 py-3 text-right text-sm font-semibold">Margin</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold">{t('date')}</th>
+                <th className="px-6 py-3 text-right text-sm font-semibold">{t('revenue')}</th>
+                <th className="px-6 py-3 text-right text-sm font-semibold">{t('costs')}</th>
+                <th className="px-6 py-3 text-right text-sm font-semibold">{t('profit')}</th>
+                <th className="px-6 py-3 text-right text-sm font-semibold">{t('margin')}</th>
               </tr>
             </thead>
             <tbody>
@@ -320,10 +321,10 @@ const RevenueTrackingPage: React.FC = () => {
                 return (
                   <tr key={index} className="border-b border-border hover:bg-muted/30">
                     <td className="px-6 py-4 text-sm font-medium">{month.month}</td>
-                    <td className="px-6 py-4 text-sm text-right">₱{month.revenue.toFixed(2)}</td>
-                    <td className="px-6 py-4 text-sm text-right">₱{month.costs.toFixed(2)}</td>
+                    <td className="px-6 py-4 text-sm text-right">{formatCurrency(month.revenue)}</td>
+                    <td className="px-6 py-4 text-sm text-right">{formatCurrency(month.costs)}</td>
                     <td className="px-6 py-4 text-sm text-right font-semibold text-green-600">
-                      ₱{month.profit.toFixed(2)}
+                      {formatCurrency(month.profit)}
                     </td>
                     <td className="px-6 py-4 text-sm text-right">{margin}%</td>
                   </tr>

@@ -201,7 +201,6 @@ export function generateInvoicePDF(
       // Footer
       doc.fontSize(8).fillColor('#999999');
       doc.text('Thank you for your business!', 50, 750, { align: 'center' });
-      doc.text('This is a computer-generated invoice. No signature required.', 50, 765, { align: 'center' });
 
       doc.end();
 
