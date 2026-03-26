@@ -3,6 +3,7 @@
 import { Button } from '@/components/ui/button';
 import { X, Printer } from 'lucide-react';
 import { useRef } from 'react';
+import { useFilePreview } from '@/hooks/use-file-preview';
 import { useLanguage } from '@/hooks/use-language';
 
 interface InvoiceItem {
@@ -25,6 +26,7 @@ interface InvoicePreviewProps {
 const InvoicePreview: React.FC<InvoicePreviewProps> = ({ invoice, businessSettings, onClose }) => {
   const { formatCurrency, formatDate, t } = useLanguage();
   const printRef = useRef<HTMLDivElement>(null);
+  const logoSrc = useFilePreview(businessSettings?.logo_path);
   const formatMoney = (amount: number) =>
     formatCurrency(amount, businessSettings?.currency || 'PHP');
 
@@ -86,9 +88,9 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({ invoice, businessSettin
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
                 <div>
                   {/* Logo */}
-                  {businessSettings?.logo_path && (
+                  {logoSrc && (
                     <img
-                      src={businessSettings.logo_path}
+                      src={logoSrc}
                       alt={t('logo')}
                       style={{ maxWidth: '120px', maxHeight: '80px', marginBottom: '10px' }}
                     />

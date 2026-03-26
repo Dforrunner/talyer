@@ -31,10 +31,10 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, onPageChange, lowStockCo
     { id: 'dashboard' as Page, label: t('dashboard'), icon: LayoutDashboard },
     { id: 'inventory' as Page, label: t('inventory'), icon: Package, badge: lowStockCount > 0 ? lowStockCount : null },
     { id: 'invoice-history' as Page, label: t('invoiceHistory'), icon: History },
-    { id: 'revenue-tracking' as Page, label: t('revenueTracking'), icon: TrendingUp },
     { id: 'expenses-income' as Page, label: t('expensesIncome'), icon: DollarSign },
-    { id: 'business-settings' as Page, label: t('businessSettings'), icon: Settings },
+    { id: 'revenue-tracking' as Page, label: t('revenueTracking'), icon: TrendingUp },
     { id: 'data-management' as Page, label: t('dataManagement'), icon: Download },
+    { id: 'business-settings' as Page, label: t('businessSettings'), icon: Settings },
   ];
 
   return (

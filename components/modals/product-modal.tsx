@@ -43,6 +43,10 @@ const ProductModal: React.FC<ProductModalProps> = ({ product, onClose, onSave })
 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const profitMargin =
+    formData.selling_price > 0
+      ? ((formData.selling_price - formData.cost_price) / formData.selling_price) * 100
+      : 0;
 
   useEffect(() => {
     if (product) {
@@ -244,9 +248,9 @@ const ProductModal: React.FC<ProductModalProps> = ({ product, onClose, onSave })
                   required
                 />
               </div>
-              {formData.selling_price > formData.cost_price && (
+              {formData.selling_price > formData.cost_price && formData.selling_price > 0 && (
                 <div className="md:col-span-2 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700">
-                  {t('profitMargin')}: {(((formData.selling_price - formData.cost_price) / formData.selling_price) * 100).toFixed(1)}%
+                  {t('profitMargin')}: {profitMargin.toFixed(1)}%
                 </div>
               )}
             </div>

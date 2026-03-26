@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Download, Upload, AlertCircle, CheckCircle } from 'lucide-react';
 import { useLanguage } from '@/hooks/use-language';
 import { safeDataExport, safeDataImport } from '@/lib/electron-api';
+import { getLocalDateInputValue } from '@/lib/date-utils';
 
 const DataManagementPage: React.FC = () => {
   const { t } = useLanguage();
@@ -29,7 +30,7 @@ const DataManagementPage: React.FC = () => {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `mechanic-shop-backup-${new Date().toISOString().split('T')[0]}.json`;
+      link.download = `mechanic-shop-backup-${getLocalDateInputValue()}.json`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -46,7 +47,6 @@ const DataManagementPage: React.FC = () => {
 
   const handleImport = async () => {
     try {
-      setImporting(true);
       setMessage(null);
 
       const input = document.createElement('input');
@@ -54,7 +54,12 @@ const DataManagementPage: React.FC = () => {
       input.accept = '.json';
       input.onchange = async (e: any) => {
         const file = e.target.files[0];
-        if (!file) return;
+        if (!file) {
+          setImporting(false);
+          return;
+        }
+
+        setImporting(true);
 
         const reader = new FileReader();
         reader.onload = async (event: any) => {
@@ -66,8 +71,16 @@ const DataManagementPage: React.FC = () => {
 
             const result = await safeDataImport(jsonData, shouldClearData);
             if (result?.success) {
-              setMessage({ type: 'success', text: t('importSuccessRefresh') });
+              setMessage({
+                type: 'success',
+                text: result.restartRequired ? t('importSuccessRestarting') : t('importSuccessRefresh'),
+              });
               setShouldClearData(false);
+              if (result.restartRequired) {
+                window.setTimeout(() => {
+                  window.location.reload();
+                }, 1200);
+              }
             } else {
               throw new Error(result?.message || t('importFailed'));
             }

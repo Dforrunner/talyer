@@ -24,12 +24,19 @@ interface BusinessSettings {
   language?: string;
 }
 
+interface PendingLogoUpload {
+  dataUrl: string;
+  fileName: string;
+}
+
 const BusinessSettingsPage: React.FC = () => {
   const { language, setLanguage, t } = useLanguage();
   const [settings, setSettings] = useState<BusinessSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [logoPreview, setLogoPreview] = useState<string>("");
+  const [pendingLogoUpload, setPendingLogoUpload] =
+    useState<PendingLogoUpload | null>(null);
 
   useEffect(() => {
     setSettings((prev) => (prev ? { ...prev, language } : prev));
@@ -58,6 +65,8 @@ const BusinessSettingsPage: React.FC = () => {
           vat_rate: result.vat_rate || 0,
           language: result.language || language,
         });
+        setLogoPreview("");
+        setPendingLogoUpload(null);
         // Load logo preview if exists
         if (result.logo_path) {
           try {
@@ -68,6 +77,7 @@ const BusinessSettingsPage: React.FC = () => {
             }
           } catch (error) {
             console.error("[BusinessSettings] Error loading logo:", error);
+            setLogoPreview("");
           }
         }
       } else {
@@ -86,6 +96,8 @@ const BusinessSettingsPage: React.FC = () => {
           vat_rate: 0,
           language,
         });
+        setLogoPreview("");
+        setPendingLogoUpload(null);
       }
     } catch (error) {
       console.error("[BusinessSettings] Error loading settings:", error);
@@ -104,6 +116,8 @@ const BusinessSettingsPage: React.FC = () => {
         vat_rate: 0,
         language,
       });
+      setLogoPreview("");
+      setPendingLogoUpload(null);
     } finally {
       setLoading(false);
     }
@@ -137,19 +151,32 @@ const BusinessSettingsPage: React.FC = () => {
         const data = event.target?.result;
         if (typeof data === "string") {
           setLogoPreview(data);
-          // Store the base64 data path reference
-          setSettings((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  logo_path: `logo_${Date.now()}.txt`,
-                }
-              : null,
-          );
+          setPendingLogoUpload({
+            dataUrl: data,
+            fileName: file.name,
+          });
         }
       };
       reader.readAsDataURL(file);
     }
+    e.target.value = "";
+  };
+
+  const buildLogoFileName = () => {
+    const originalFileName = pendingLogoUpload?.fileName || "logo.png";
+    const extension =
+      originalFileName.includes(".")
+        ? originalFileName.split(".").pop()?.toLowerCase()
+        : "png";
+
+    const normalizedName =
+      settings?.business_name
+        ?.trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, "-")
+        .replace(/^-+|-+$/g, "") || "business-logo";
+
+    return `${normalizedName}-${Date.now()}.${extension || "png"}`;
   };
 
   const handleSave = async () => {
@@ -158,11 +185,10 @@ const BusinessSettingsPage: React.FC = () => {
     try {
       setSaving(true);
 
-      // Save logo if preview exists
       let logoPath = settings.logo_path;
-      if (logoPreview && !settings.logo_path?.startsWith("logo_")) {
+      if (pendingLogoUpload) {
         logoPath =
-          (await safeFileSave(`logo_${Date.now()}.txt`, logoPreview)) ||
+          (await safeFileSave(buildLogoFileName(), pendingLogoUpload.dataUrl, "logos")) ||
           settings.logo_path;
       }
 
@@ -186,6 +212,16 @@ const BusinessSettingsPage: React.FC = () => {
           settings.language || language,
           settings.id,
         ],
+      );
+
+      setPendingLogoUpload(null);
+      setSettings((prev) =>
+        prev
+          ? {
+              ...prev,
+              logo_path: logoPath,
+            }
+          : prev,
       );
 
       alert(t("changes"));
@@ -258,6 +294,19 @@ const BusinessSettingsPage: React.FC = () => {
             <p className="text-xs text-muted-foreground">
               {t("recommendedLogo")}
             </p>
+            <p className="text-xs text-muted-foreground mt-2">
+              {t("logoStorageInfo")}
+            </p>
+            {pendingLogoUpload && (
+              <p className="text-xs text-muted-foreground mt-2 break-all">
+                {t("selectedLogoFile")} {pendingLogoUpload.fileName}
+              </p>
+            )}
+            {settings.logo_path && (
+              <p className="text-xs text-muted-foreground mt-2 break-all">
+                {t("currentLogoLocation")} {settings.logo_path}
+              </p>
+            )}
           </div>
         </div>
       </Card>

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const Database = require('better-sqlite3');
 const PDFDocument = require('pdfkit');
@@ -8,6 +8,97 @@ const isDev = !app.isPackaged;
 
 let mainWindow;
 let db;
+
+function ensureDirectory(dirPath) {
+  if (!fs.existsSync(dirPath)) {
+    fs.mkdirSync(dirPath, { recursive: true });
+  }
+}
+
+function sanitizeFileName(fileName) {
+  return String(fileName || 'file')
+    .replace(/[^a-zA-Z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'file';
+}
+
+function getManagedDirectory(subdir = '') {
+  const userDataPath = app.getPath('userData');
+  const dir = subdir ? path.join(userDataPath, subdir) : userDataPath;
+  ensureDirectory(dir);
+  return dir;
+}
+
+function buildManagedFilePath(subdir, fileName) {
+  return path.join(getManagedDirectory(subdir), sanitizeFileName(fileName));
+}
+
+function encodeFileToBase64(filepath) {
+  return fs.readFileSync(filepath).toString('base64');
+}
+
+function restoreBase64File(subdir, fileName, base64Data) {
+  const targetPath = buildManagedFilePath(subdir, fileName);
+  fs.writeFileSync(targetPath, Buffer.from(base64Data, 'base64'));
+  return targetPath;
+}
+
+function clearManagedDirectory(subdir) {
+  const dir = path.join(app.getPath('userData'), subdir);
+  if (fs.existsSync(dir)) {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+  ensureDirectory(dir);
+}
+
+function decodeFileData(data) {
+  if (Buffer.isBuffer(data)) {
+    return data;
+  }
+
+  if (typeof data !== 'string') {
+    return Buffer.from(String(data ?? ''), 'utf8');
+  }
+
+  const dataUrlMatch = data.match(/^data:([^;]+);base64,(.+)$/);
+  if (dataUrlMatch) {
+    return Buffer.from(dataUrlMatch[2], 'base64');
+  }
+
+  return Buffer.from(data, 'utf8');
+}
+
+function getMimeType(filepath) {
+  switch (path.extname(filepath).toLowerCase()) {
+    case '.png':
+      return 'image/png';
+    case '.jpg':
+    case '.jpeg':
+      return 'image/jpeg';
+    case '.gif':
+      return 'image/gif';
+    case '.webp':
+      return 'image/webp';
+    case '.svg':
+      return 'image/svg+xml';
+    case '.json':
+      return 'application/json';
+    case '.txt':
+      return 'text/plain';
+    default:
+      return 'application/octet-stream';
+  }
+}
+
+function hasColumn(tableName, columnName) {
+  const columns = db.prepare(`PRAGMA table_info(${tableName})`).all();
+  return columns.some((column) => column.name === columnName);
+}
+
+function ensureColumnExists(tableName, columnName, definition) {
+  if (!hasColumn(tableName, columnName)) {
+    db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`);
+  }
+}
 
 // Initialize database
 function initializeDatabase() {
@@ -85,6 +176,7 @@ function initializeDatabase() {
       description TEXT NOT NULL,
       quantity REAL NOT NULL,
       unit_price REAL NOT NULL,
+      cost_price REAL,
       amount REAL NOT NULL,
       created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE,
@@ -143,6 +235,18 @@ function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS idx_audit_log_entity ON audit_log(entity_type, entity_id);
   `);
 
+  ensureColumnExists('invoice_items', 'cost_price', 'REAL');
+
+  db.exec(`
+    UPDATE invoice_items
+    SET cost_price = (
+      SELECT p.cost_price
+      FROM products p
+      WHERE p.id = invoice_items.product_id
+    )
+    WHERE product_id IS NOT NULL AND cost_price IS NULL;
+  `);
+
   // Initialize business settings if empty
   const settingsCount = db.prepare('SELECT COUNT(*) as count FROM business_settings').get();
   if (settingsCount.count === 0) {
@@ -199,18 +303,41 @@ ipcMain.handle('database:exec', async (event, query) => {
 
 ipcMain.handle('file:save', async (event, filename, data, subdir = '') => {
   try {
-    const userDataPath = app.getPath('userData');
-    const dir = subdir ? path.join(userDataPath, subdir) : userDataPath;
-    
-    if (!fs.existsSync(dir)) {
-      fs.mkdirSync(dir, { recursive: true });
-    }
-    
-    const filepath = path.join(dir, filename);
-    fs.writeFileSync(filepath, data);
+    const filepath = buildManagedFilePath(subdir, filename);
+    fs.writeFileSync(filepath, decodeFileData(data));
     return filepath;
   } catch (error) {
     console.error('File save error:', error);
+    throw error;
+  }
+});
+
+ipcMain.handle('file:save-as', async (event, options = {}) => {
+  try {
+    const {
+      defaultFileName = 'file',
+      data,
+      filters = [],
+    } = options;
+
+    const result = await dialog.showSaveDialog(mainWindow, {
+      defaultPath: path.join(app.getPath('desktop'), defaultFileName),
+      filters,
+    });
+
+    if (result.canceled || !result.filePath) {
+      return null;
+    }
+
+    const dir = path.dirname(result.filePath);
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+
+    fs.writeFileSync(result.filePath, decodeFileData(data));
+    return result.filePath;
+  } catch (error) {
+    console.error('File save-as error:', error);
     throw error;
   }
 });
@@ -226,7 +353,14 @@ ipcMain.handle('file:exists', async (event, filepath) => {
 
 ipcMain.handle('file:read', async (event, filepath) => {
   try {
-    return fs.readFileSync(filepath, 'utf8');
+    const fileBuffer = fs.readFileSync(filepath);
+    const mimeType = getMimeType(filepath);
+
+    if (mimeType.startsWith('image/')) {
+      return `data:${mimeType};base64,${fileBuffer.toString('base64')}`;
+    }
+
+    return fileBuffer.toString('utf8');
   } catch (error) {
     console.error('File read error:', error);
     throw error;
@@ -435,13 +569,6 @@ ipcMain.handle('pdf:generate', async (event, invoiceData, businessData) => {
 // Export/Import functionality for data portability
 ipcMain.handle('data:export', async (event) => {
   try {
-    const userDataPath = app.getPath('userData');
-    const dbPath = path.join(userDataPath, 'shop.db');
-    
-    if (!fs.existsSync(dbPath)) {
-      throw new Error('Database file not found');
-    }
-
     // Read all data from database
     const businessSettings = db.prepare('SELECT * FROM business_settings LIMIT 1').all();
     const products = db.prepare('SELECT * FROM products').all();
@@ -450,9 +577,26 @@ ipcMain.handle('data:export', async (event) => {
     const lowStockAlerts = db.prepare('SELECT * FROM low_stock_alerts').all();
     const expenses = db.prepare('SELECT * FROM expenses').all();
     const income = db.prepare('SELECT * FROM income').all();
+    const auditLog = db.prepare('SELECT * FROM audit_log').all();
+
+    const logoAsset =
+      businessSettings[0]?.logo_path && fs.existsSync(businessSettings[0].logo_path)
+        ? {
+            fileName: path.basename(businessSettings[0].logo_path),
+            data: encodeFileToBase64(businessSettings[0].logo_path),
+          }
+        : null;
+
+    const invoicePdfAssets = invoices
+      .filter((invoice) => invoice.pdf_path && fs.existsSync(invoice.pdf_path))
+      .map((invoice) => ({
+        invoiceId: invoice.id,
+        fileName: path.basename(invoice.pdf_path),
+        data: encodeFileToBase64(invoice.pdf_path),
+      }));
 
     const exportData = {
-      version: '1.0.0',
+      version: '1.1.0',
       exportDate: new Date().toISOString(),
       businessSettings,
       products,
@@ -460,7 +604,12 @@ ipcMain.handle('data:export', async (event) => {
       invoiceItems,
       lowStockAlerts,
       expenses,
-      income
+      income,
+      auditLog,
+      assets: {
+        logo: logoAsset,
+        invoicePdfs: invoicePdfAssets,
+      },
     };
 
     return JSON.stringify(exportData, null, 2);
@@ -474,7 +623,7 @@ ipcMain.handle('data:import', async (event, jsonData, shouldClear = false) => {
   try {
     const importData = JSON.parse(jsonData);
     
-    if (importData.version !== '1.0.0') {
+    if (!['1.0.0', '1.1.0'].includes(importData.version)) {
       throw new Error('Invalid export file version');
     }
 
@@ -485,8 +634,36 @@ ipcMain.handle('data:import', async (event, jsonData, shouldClear = false) => {
       db.prepare('DELETE FROM invoices').run();
       db.prepare('DELETE FROM expenses').run();
       db.prepare('DELETE FROM income').run();
+      db.prepare('DELETE FROM audit_log').run();
       db.prepare('DELETE FROM products').run();
       db.prepare('DELETE FROM business_settings').run();
+      clearManagedDirectory('logos');
+      clearManagedDirectory('invoices');
+    }
+
+    let restoredLogoPath = null;
+    if (importData.assets?.logo?.data && importData.assets?.logo?.fileName) {
+      restoredLogoPath = restoreBase64File(
+        'logos',
+        importData.assets.logo.fileName,
+        importData.assets.logo.data,
+      );
+    }
+
+    const restoredInvoicePdfPaths = new Map();
+    if (Array.isArray(importData.assets?.invoicePdfs)) {
+      for (const pdfAsset of importData.assets.invoicePdfs) {
+        if (!pdfAsset?.invoiceId || !pdfAsset?.fileName || !pdfAsset?.data) {
+          continue;
+        }
+
+        const restoredPdfPath = restoreBase64File(
+          'invoices',
+          pdfAsset.fileName,
+          pdfAsset.data,
+        );
+        restoredInvoicePdfPaths.set(pdfAsset.invoiceId, restoredPdfPath);
+      }
     }
 
     // Import business settings
@@ -497,7 +674,7 @@ ipcMain.handle('data:import', async (event, jsonData, shouldClear = false) => {
         (id, business_name, logo_path, address, city, postal_code, phone, email, tax_id, currency, vat_rate, language, created_at, updated_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `).run(
-        bs.id, bs.business_name, bs.logo_path, bs.address, bs.city, bs.postal_code, 
+        bs.id, bs.business_name, restoredLogoPath || null, bs.address, bs.city, bs.postal_code, 
         bs.phone, bs.email, bs.tax_id, bs.currency, bs.vat_rate, bs.language, bs.created_at, bs.updated_at
       );
     }
@@ -506,14 +683,24 @@ ipcMain.handle('data:import', async (event, jsonData, shouldClear = false) => {
     if (importData.products) {
       const insertProduct = db.prepare(`
         INSERT OR REPLACE INTO products 
-        (id, name, category, cost_price, selling_price, quantity_in_stock, low_stock_threshold, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (id, name, description, cost_price, selling_price, quantity_in_stock, low_stock_threshold, sku, category, unit, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       
       for (const product of importData.products) {
         insertProduct.run(
-          product.id, product.name, product.category, product.cost_price, product.selling_price,
-          product.quantity_in_stock, product.low_stock_threshold, product.created_at, product.updated_at
+          product.id,
+          product.name,
+          product.description,
+          product.cost_price,
+          product.selling_price,
+          product.quantity_in_stock,
+          product.low_stock_threshold,
+          product.sku,
+          product.category,
+          product.unit,
+          product.created_at,
+          product.updated_at
         );
       }
     }
@@ -522,16 +709,30 @@ ipcMain.handle('data:import', async (event, jsonData, shouldClear = false) => {
     if (importData.invoices) {
       const insertInvoice = db.prepare(`
         INSERT OR REPLACE INTO invoices 
-        (id, invoice_number, customer_name, customer_phone, customer_email, invoice_date, due_date, notes, subtotal, tax_amount, tax_rate, total, status, pdf_path, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (id, invoice_number, customer_name, customer_phone, customer_email, invoice_date, due_date, status, notes, subtotal, tax_amount, tax_rate, total, paid, payment_method, pdf_path, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       
       for (const invoice of importData.invoices) {
         insertInvoice.run(
-          invoice.id, invoice.invoice_number, invoice.customer_name, invoice.customer_phone,
-          invoice.customer_email, invoice.invoice_date, invoice.due_date, invoice.notes,
-          invoice.subtotal, invoice.tax_amount, invoice.tax_rate, invoice.total, invoice.status,
-          invoice.pdf_path, invoice.created_at
+          invoice.id,
+          invoice.invoice_number,
+          invoice.customer_name,
+          invoice.customer_phone,
+          invoice.customer_email,
+          invoice.invoice_date,
+          invoice.due_date,
+          invoice.status,
+          invoice.notes,
+          invoice.subtotal,
+          invoice.tax_amount,
+          invoice.tax_rate,
+          invoice.total,
+          invoice.paid,
+          invoice.payment_method,
+          restoredInvoicePdfPaths.get(invoice.id) || null,
+          invoice.created_at,
+          invoice.updated_at
         );
       }
     }
@@ -540,14 +741,18 @@ ipcMain.handle('data:import', async (event, jsonData, shouldClear = false) => {
     if (importData.invoiceItems) {
       const insertItem = db.prepare(`
         INSERT OR REPLACE INTO invoice_items
-        (id, invoice_id, product_id, item_type, description, quantity, unit_price, amount, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (id, invoice_id, product_id, item_type, description, quantity, unit_price, cost_price, amount, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       
       for (const item of importData.invoiceItems) {
         insertItem.run(
           item.id, item.invoice_id, item.product_id, item.item_type, item.description,
-          item.quantity, item.unit_price, item.amount, item.created_at
+          item.quantity,
+          item.unit_price,
+          item.cost_price ?? null,
+          item.amount,
+          item.created_at
         );
       }
     }
@@ -556,12 +761,20 @@ ipcMain.handle('data:import', async (event, jsonData, shouldClear = false) => {
     if (importData.lowStockAlerts) {
       const insertAlert = db.prepare(`
         INSERT OR REPLACE INTO low_stock_alerts
-        (id, product_id, alert_threshold, created_at)
-        VALUES (?, ?, ?, ?)
+        (id, product_id, threshold, current_stock, status, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
       `);
       
       for (const alert of importData.lowStockAlerts) {
-        insertAlert.run(alert.id, alert.product_id, alert.alert_threshold, alert.created_at);
+        insertAlert.run(
+          alert.id,
+          alert.product_id,
+          alert.threshold,
+          alert.current_stock,
+          alert.status,
+          alert.created_at,
+          alert.updated_at,
+        );
       }
     }
 
@@ -597,7 +810,27 @@ ipcMain.handle('data:import', async (event, jsonData, shouldClear = false) => {
       }
     }
 
-    return { success: true, message: 'Data imported successfully' };
+    // Import audit log
+    if (importData.auditLog) {
+      const insertAuditLog = db.prepare(`
+        INSERT OR REPLACE INTO audit_log
+        (id, action, entity_type, entity_id, changes, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `);
+
+      for (const entry of importData.auditLog) {
+        insertAuditLog.run(
+          entry.id,
+          entry.action,
+          entry.entity_type,
+          entry.entity_id,
+          entry.changes,
+          entry.created_at,
+        );
+      }
+    }
+
+    return { success: true, message: 'Data imported successfully', restartRequired: true };
   } catch (error) {
     console.error('Import error:', error);
     throw error;
@@ -616,7 +849,8 @@ function formatCurrency(amount, currency = 'PHP') {
     CHF: 'CHF'
   };
   const symbol = symbols[currency] || '₱';
-  return `${symbol}${amount.toFixed(2)}`;
+  const normalizedAmount = Number.isFinite(Number(amount)) ? Number(amount) : 0;
+  return `${symbol}${normalizedAmount.toFixed(2)}`;
 }
 
 function createWindow() {

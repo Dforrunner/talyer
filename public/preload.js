@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // File operations
   file: {
     save: (filename, data, subdir) => ipcRenderer.invoke('file:save', filename, data, subdir),
+    saveAs: (options) => ipcRenderer.invoke('file:save-as', options),
     exists: (filepath) => ipcRenderer.invoke('file:exists', filepath),
     read: (filepath) => ipcRenderer.invoke('file:read', filepath),
   },

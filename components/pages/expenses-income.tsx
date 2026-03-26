@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Plus, Trash2, Edit2 } from 'lucide-react';
 import { db } from '@/lib/db';
 import { useLanguage } from '@/hooks/use-language';
+import { getLocalDateInputValue } from '@/lib/date-utils';
 
 interface Expense {
   id: number;
@@ -42,7 +43,7 @@ const ExpensesIncomePage: React.FC = () => {
     category: '',
     description: '',
     amount: '',
-    date: new Date().toISOString().split('T')[0],
+    date: getLocalDateInputValue(),
     payment_method: '',
     notes: '',
   });
@@ -72,29 +73,35 @@ const ExpensesIncomePage: React.FC = () => {
       return;
     }
 
+    const amount = Number(formData.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      alert(t('enterValidAmount'));
+      return;
+    }
+
     try {
       if (activeTab === 'expenses') {
         if (editingId) {
           await db.run(
             'UPDATE expenses SET category = ?, description = ?, amount = ?, expense_date = ?, payment_method = ?, notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-            [formData.category, formData.description, parseFloat(formData.amount), formData.date, formData.payment_method, formData.notes, editingId]
+            [formData.category, formData.description, amount, formData.date, formData.payment_method, formData.notes, editingId]
           );
         } else {
           await db.run(
             'INSERT INTO expenses (category, description, amount, expense_date, payment_method, notes) VALUES (?, ?, ?, ?, ?, ?)',
-            [formData.category, formData.description, parseFloat(formData.amount), formData.date, formData.payment_method, formData.notes]
+            [formData.category, formData.description, amount, formData.date, formData.payment_method, formData.notes]
           );
         }
       } else {
         if (editingId) {
           await db.run(
             'UPDATE income SET category = ?, description = ?, amount = ?, income_date = ?, payment_method = ?, notes = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-            [formData.category, formData.description, parseFloat(formData.amount), formData.date, formData.payment_method, formData.notes, editingId]
+            [formData.category, formData.description, amount, formData.date, formData.payment_method, formData.notes, editingId]
           );
         } else {
           await db.run(
             'INSERT INTO income (category, description, amount, income_date, payment_method, notes) VALUES (?, ?, ?, ?, ?, ?)',
-            [formData.category, formData.description, parseFloat(formData.amount), formData.date, formData.payment_method, formData.notes]
+            [formData.category, formData.description, amount, formData.date, formData.payment_method, formData.notes]
           );
         }
       }
@@ -138,7 +145,7 @@ const ExpensesIncomePage: React.FC = () => {
       category: '',
       description: '',
       amount: '',
-      date: new Date().toISOString().split('T')[0],
+      date: getLocalDateInputValue(),
       payment_method: '',
       notes: '',
     });
@@ -170,7 +177,26 @@ const ExpensesIncomePage: React.FC = () => {
           <h1 className="text-3xl font-bold">{t('expensesIncome')}</h1>
           <p className="text-muted-foreground mt-1">{t('expensesIncomeDesc')}</p>
         </div>
-        <Button onClick={() => setShowForm(!showForm)} className="gap-2">
+        <Button
+          onClick={() => {
+            if (showForm) {
+              resetForm();
+              return;
+            }
+
+            setEditingId(null);
+            setFormData({
+              category: '',
+              description: '',
+              amount: '',
+              date: getLocalDateInputValue(),
+              payment_method: '',
+              notes: '',
+            });
+            setShowForm(true);
+          }}
+          className="gap-2"
+        >
           <Plus className="w-4 h-4" />
           {activeTab === 'expenses' ? t('addExpense') : t('addIncome')}
         </Button>
@@ -179,13 +205,19 @@ const ExpensesIncomePage: React.FC = () => {
       <div className="flex gap-2">
         <Button
           variant={activeTab === 'expenses' ? 'default' : 'outline'}
-          onClick={() => { setActiveTab('expenses'); setShowForm(false); }}
+          onClick={() => {
+            setActiveTab('expenses');
+            resetForm();
+          }}
         >
           {t('expense')}
         </Button>
         <Button
           variant={activeTab === 'income' ? 'default' : 'outline'}
-          onClick={() => { setActiveTab('income'); setShowForm(false); }}
+          onClick={() => {
+            setActiveTab('income');
+            resetForm();
+          }}
         >
           {t('income')}
         </Button>

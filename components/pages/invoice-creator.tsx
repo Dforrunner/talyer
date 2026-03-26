@@ -6,13 +6,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Plus, Trash2, Eye } from 'lucide-react';
 import { db } from '@/lib/db';
+import { useFilePreview } from '@/hooks/use-file-preview';
 import { useLanguage } from '@/hooks/use-language';
 import { safePdfGenerate } from '@/lib/electron-api';
+import { getLocalDateInputValue } from '@/lib/date-utils';
 import InvoicePreview from '@/components/invoice-preview';
 
 interface Product {
   id: number;
   name: string;
+  cost_price: number;
   selling_price: number;
   quantity_in_stock: number;
 }
@@ -25,6 +28,7 @@ interface InvoiceItem {
   description: string;
   quantity: number;
   unit_price: number;
+  cost_price?: number;
   amount: number;
 }
 
@@ -48,7 +52,7 @@ const InvoiceCreatorPage: React.FC = () => {
   const [businessSettings, setBusinessSettings] = useState<any>(null);
   const [showPreview, setShowPreview] = useState(false);
   const [saving, setSaving] = useState(false);
-  const today = new Date().toISOString().split('T')[0];
+  const today = getLocalDateInputValue();
   const [invoice, setInvoice] = useState<Invoice>({
     customer_name: '',
     customer_phone: '',
@@ -62,6 +66,7 @@ const InvoiceCreatorPage: React.FC = () => {
     tax_amount: 0,
     total: 0,
   });
+  const logoSrc = useFilePreview(businessSettings?.logo_path);
 
   useEffect(() => {
     loadData();
@@ -69,8 +74,10 @@ const InvoiceCreatorPage: React.FC = () => {
 
   const loadData = async () => {
     try {
-      const prods = await db.query('SELECT id, name, selling_price, quantity_in_stock FROM products WHERE quantity_in_stock > 0 ORDER BY name');
-      setProducts(prods || []);
+      const prodsWithCosts = await db.query(
+        'SELECT id, name, cost_price, selling_price, quantity_in_stock FROM products WHERE quantity_in_stock > 0 ORDER BY name'
+      );
+      setProducts(prodsWithCosts || []);
 
       const settings = await db.get('SELECT * FROM business_settings LIMIT 1');
       if (settings) {
@@ -108,6 +115,7 @@ const InvoiceCreatorPage: React.FC = () => {
       description: '',
       quantity: 1,
       unit_price: 0,
+      cost_price: 0,
       amount: 0,
     };
     const newItems = [...invoice.items, newItem];
@@ -126,6 +134,7 @@ const InvoiceCreatorPage: React.FC = () => {
       description: t('laborWork'),
       quantity: 1,
       unit_price: 0,
+      cost_price: 0,
       amount: 0,
     };
     const newItems = [...invoice.items, newItem];
@@ -147,6 +156,9 @@ const InvoiceCreatorPage: React.FC = () => {
           if (product) {
             updated.product_name = product.name;
             updated.unit_price = product.selling_price;
+            updated.cost_price = product.cost_price;
+            updated.description = product.name;
+            updated.amount = (updated.quantity || 0) * product.selling_price;
           }
         }
         
@@ -199,61 +211,109 @@ const InvoiceCreatorPage: React.FC = () => {
       return;
     }
 
+    for (const item of invoice.items) {
+      if (item.type === 'product' && !item.product_id) {
+        alert(t('selectProductBeforeSaving'));
+        return;
+      }
+
+      if (item.type === 'labor' && !item.description.trim()) {
+        alert(t('enterItemDescription'));
+        return;
+      }
+
+      if (!Number.isFinite(item.quantity) || item.quantity <= 0) {
+        alert(t('enterValidItemQuantity'));
+        return;
+      }
+    }
+
+    const requestedStockByProduct = new Map<number, number>();
+    for (const item of invoice.items) {
+      if (item.type !== 'product' || !item.product_id) {
+        continue;
+      }
+
+      requestedStockByProduct.set(
+        item.product_id,
+        (requestedStockByProduct.get(item.product_id) || 0) + item.quantity,
+      );
+    }
+
+    for (const [productId, requestedQuantity] of requestedStockByProduct) {
+      const product = products.find((entry) => entry.id === productId);
+      if (!product || product.quantity_in_stock < requestedQuantity) {
+        alert(t('notEnoughStock'));
+        return;
+      }
+    }
+
     try {
       setSaving(true);
+      let generatedInvoiceNumber = '';
+      let invoiceId: number | null = null;
 
-      const invoiceNumber = await db.get(
-        'SELECT COUNT(*) as count FROM invoices WHERE DATE(invoice_date) = ?',
-        [invoice.invoice_date]
-      );
-      const sequence = String((invoiceNumber?.count || 0) + 1).padStart(4, '0');
-      const today = new Date(invoice.invoice_date);
-      const year = today.getFullYear();
-      const month = String(today.getMonth() + 1).padStart(2, '0');
-      const day = String(today.getDate()).padStart(2, '0');
-      const generatedInvoiceNumber = `INV-${year}${month}${day}-${sequence}`;
+      await db.exec('BEGIN');
+      try {
+        const invoiceNumber = await db.get(
+          'SELECT COUNT(*) as count FROM invoices WHERE DATE(invoice_date) = ?',
+          [invoice.invoice_date]
+        );
+        const sequence = String((invoiceNumber?.count || 0) + 1).padStart(4, '0');
+        const today = new Date(invoice.invoice_date);
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        generatedInvoiceNumber = `INV-${year}${month}${day}-${sequence}`;
 
-      const result = await db.run(
-        `INSERT INTO invoices (invoice_number, customer_name, customer_phone, customer_email, invoice_date, due_date, notes, subtotal, tax_amount, tax_rate, total, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft')`,
-        [
-          generatedInvoiceNumber,
-          invoice.customer_name,
-          invoice.customer_phone,
-          invoice.customer_email,
-          invoice.invoice_date,
-          invoice.due_date,
-          invoice.notes,
-          invoice.subtotal,
-          invoice.tax_amount,
-          invoice.tax_rate,
-          invoice.total
-        ]
-      );
-
-      const invoiceId = result.lastID;
-
-      for (const item of invoice.items) {
-        await db.run(
-          `INSERT INTO invoice_items (invoice_id, product_id, item_type, description, quantity, unit_price, amount)
-           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        const result = await db.run(
+          `INSERT INTO invoices (invoice_number, customer_name, customer_phone, customer_email, invoice_date, due_date, notes, subtotal, tax_amount, tax_rate, total, status)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft')`,
           [
-            invoiceId,
-            item.product_id || null,
-            item.type,
-            item.description || item.product_name || '',
-            item.quantity,
-            item.unit_price,
-            item.amount
+            generatedInvoiceNumber,
+            invoice.customer_name,
+            invoice.customer_phone,
+            invoice.customer_email,
+            invoice.invoice_date,
+            invoice.due_date,
+            invoice.notes,
+            invoice.subtotal,
+            invoice.tax_amount,
+            invoice.tax_rate,
+            invoice.total
           ]
         );
 
-        if (item.type === 'product' && item.product_id) {
+        invoiceId = result.lastID;
+
+        for (const item of invoice.items) {
           await db.run(
-            'UPDATE products SET quantity_in_stock = quantity_in_stock - ? WHERE id = ?',
-            [item.quantity, item.product_id]
+            `INSERT INTO invoice_items (invoice_id, product_id, item_type, description, quantity, unit_price, cost_price, amount)
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              invoiceId,
+              item.product_id || null,
+              item.type,
+              item.description || item.product_name || '',
+              item.quantity,
+              item.unit_price,
+              item.cost_price ?? null,
+              item.amount
+            ]
           );
+
+          if (item.type === 'product' && item.product_id) {
+            await db.run(
+              'UPDATE products SET quantity_in_stock = quantity_in_stock - ? WHERE id = ?',
+              [item.quantity, item.product_id]
+            );
+          }
         }
+
+        await db.exec('COMMIT');
+      } catch (transactionError) {
+        await db.exec('ROLLBACK');
+        throw transactionError;
       }
 
       try {
@@ -280,7 +340,7 @@ const InvoiceCreatorPage: React.FC = () => {
           businessSettings || {}
         );
 
-        if (pdfPath) {
+        if (pdfPath && invoiceId) {
           await db.run(
             'UPDATE invoices SET pdf_path = ? WHERE id = ?',
             [pdfPath, invoiceId]
@@ -296,8 +356,8 @@ const InvoiceCreatorPage: React.FC = () => {
         customer_name: '',
         customer_phone: '',
         customer_email: '',
-        invoice_date: new Date().toISOString().split('T')[0],
-        due_date: new Date().toISOString().split('T')[0],
+        invoice_date: getLocalDateInputValue(),
+        due_date: getLocalDateInputValue(),
         notes: '',
         items: [],
         subtotal: 0,
@@ -343,9 +403,9 @@ const InvoiceCreatorPage: React.FC = () => {
             {businessSettings && (
               <div className="flex justify-between items-start pb-6 border-b-2 border-gray-200">
                 <div>
-                  {businessSettings?.logo_path && (
+                  {logoSrc && (
                     <img 
-                      src={businessSettings.logo_path} 
+                      src={logoSrc} 
                       alt={t('logo')} 
                       className="max-w-[120px] max-h-[80px] mb-3"
                     />

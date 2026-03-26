@@ -88,7 +88,27 @@ const InvoiceHistoryPage: React.FC = () => {
   const handleDeleteInvoice = async (id: number) => {
     if (window.confirm(t('deleteConfirm'))) {
       try {
-        await db.run('DELETE FROM invoices WHERE id = ?', [id]);
+        await db.exec('BEGIN');
+        try {
+          const invoiceItems = await db.query(
+            'SELECT product_id, quantity FROM invoice_items WHERE invoice_id = ? AND product_id IS NOT NULL',
+            [id]
+          );
+
+          for (const item of invoiceItems) {
+            await db.run(
+              'UPDATE products SET quantity_in_stock = quantity_in_stock + ? WHERE id = ?',
+              [item.quantity, item.product_id]
+            );
+          }
+
+          await db.run('DELETE FROM invoices WHERE id = ?', [id]);
+          await db.exec('COMMIT');
+        } catch (transactionError) {
+          await db.exec('ROLLBACK');
+          throw transactionError;
+        }
+
         await loadInvoices();
       } catch (error) {
         console.error('Error deleting invoice:', error);

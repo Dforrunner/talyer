@@ -232,5 +232,6 @@ function formatCurrency(amount: number, currency: string = 'USD'): string {
     CHF: 'CHF'
   };
   const symbol = symbols[currency] || '$';
-  return `${symbol}${amount.toFixed(2)}`;
+  const normalizedAmount = Number.isFinite(Number(amount)) ? Number(amount) : 0;
+  return `${symbol}${normalizedAmount.toFixed(2)}`;
 }

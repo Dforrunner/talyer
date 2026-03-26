@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { AlertTriangle, Package, FileText, TrendingUp, Plus, BarChart3 } from 'lucide-react';
 import { db } from '@/lib/db';
 import { useLanguage } from '@/hooks/use-language';
+import { getMonthDateRange } from '@/lib/date-utils';
 
 interface DashboardPageProps {
   onLowStockUpdate?: (count: number) => void;
@@ -52,23 +53,11 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ onLowStockUpdate, onNavig
         const today = new Date();
         const year = today.getFullYear();
         const month = today.getMonth() + 1;
-        const startDate = new Date(year, month - 1, 1).toISOString().split('T')[0];
-        const endDate = new Date(year, month, 0).toISOString().split('T')[0];
+        const { startDate, endDate } = getMonthDateRange(year, month);
 
         const profit = await db.get(
           `SELECT SUM(total) as total_revenue FROM invoices 
            WHERE invoice_date >= ? AND invoice_date <= ? AND status != 'draft'`,
-          [startDate, endDate]
-        );
-
-        // Get this month's expenses and income
-        const expensesData = await db.get(
-          `SELECT SUM(amount) as total FROM expenses WHERE expense_date >= ? AND expense_date <= ?`,
-          [startDate, endDate]
-        );
-
-        const incomeData = await db.get(
-          `SELECT SUM(amount) as total FROM income WHERE income_date >= ? AND income_date <= ?`,
           [startDate, endDate]
         );
 

@@ -78,6 +78,15 @@ export const safeDbRun = async (sql: string, params: any[] = []) => {
 };
 
 // Safe file operations
+export interface FileSaveDialogOptions {
+  defaultFileName: string;
+  data: any;
+  filters?: Array<{
+    name: string;
+    extensions: string[];
+  }>;
+}
+
 export const safeFileExists = async (filepath: string) => {
   try {
     const api = getElectronAPI();
@@ -103,6 +112,20 @@ export const safeFileSave = async (filename: string, data: any, subdir?: string)
     return await api.file.save(filename, data, subdir);
   } catch (error) {
     console.error('[File] Save error:', error);
+    throw error;
+  }
+};
+
+export const safeFileSaveAs = async (options: FileSaveDialogOptions) => {
+  try {
+    const api = getElectronAPI();
+    if (!api?.file?.saveAs) {
+      console.warn('[File] File save-as API not available');
+      return null;
+    }
+    return await api.file.saveAs(options);
+  } catch (error) {
+    console.error('[File] Save-as error:', error);
     throw error;
   }
 };

@@ -3,13 +3,18 @@
 import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { db } from '@/lib/db';
+import { db, getMonthlyFinancialSummary } from '@/lib/db';
 import { TrendingUp, DollarSign, ShoppingCart, Percent } from 'lucide-react';
 import { useLanguage } from '@/hooks/use-language';
+import { getYearDateRange } from '@/lib/date-utils';
 
 interface MonthlyData {
   month: string;
+  salesRevenue: number;
+  additionalIncome: number;
   revenue: number;
+  productCosts: number;
+  additionalExpenses: number;
   costs: number;
   profit: number;
 }
@@ -39,65 +44,37 @@ const RevenueTrackingPage: React.FC = () => {
   const loadRevenueData = async () => {
     try {
       setLoading(true);
-      const data: MonthlyData[] = [];
+      const data = await Promise.all(
+        Array.from({ length: 12 }, async (_, index) => {
+          const month = index + 1;
+          const summary = await getMonthlyFinancialSummary(selectedYear, month);
 
-      // Get data for each month
-      for (let month = 1; month <= 12; month++) {
-        const startDate = new Date(selectedYear, month - 1, 1).toISOString().split('T')[0];
-        const endDate = new Date(selectedYear, month, 0).toISOString().split('T')[0];
-
-        // Get revenue
-        const revenueData = await db.get(
-          `SELECT SUM(total) as total FROM invoices 
-           WHERE invoice_date >= ? AND invoice_date <= ? AND status != 'draft'`,
-          [startDate, endDate]
-        );
-
-        // Get costs (product costs only)
-        const costsData = await db.get(
-          `SELECT SUM(ii.quantity * ii.unit_price) as total FROM invoice_items ii
-           JOIN invoices i ON ii.invoice_id = i.id
-           WHERE ii.product_id IS NOT NULL AND i.invoice_date >= ? AND i.invoice_date <= ? AND i.status != 'draft'`,
-          [startDate, endDate]
-        );
-
-        const revenue = revenueData?.total || 0;
-        const costs = costsData?.total || 0;
-
-        data.push({
-          month: formatMonth(new Date(selectedYear, month - 1, 1)),
-          revenue: Math.round(revenue * 100) / 100,
-          costs: Math.round(costs * 100) / 100,
-          profit: Math.round((revenue - costs) * 100) / 100,
-        });
-      }
+          return {
+            month: formatMonth(new Date(selectedYear, month - 1, 1)),
+            salesRevenue: summary.salesRevenue,
+            additionalIncome: summary.additionalIncome,
+            revenue: summary.revenue,
+            productCosts: summary.productCosts,
+            additionalExpenses: summary.additionalExpenses,
+            costs: summary.costs,
+            profit: summary.profit,
+          };
+        }),
+      );
 
       setMonthlyData(data);
 
       // Calculate yearly stats
-      const totalRevenue = data.reduce((sum, m) => sum + m.revenue, 0);
-      const totalCosts = data.reduce((sum, m) => sum + m.costs, 0);
-      
-      // Get additional expenses
-      const startOfYear = new Date(selectedYear, 0, 1).toISOString().split('T')[0];
-      const endOfYear = new Date(selectedYear, 11, 31).toISOString().split('T')[0];
-
-      const expensesData = await db.get(
-        `SELECT SUM(amount) as total FROM expenses WHERE expense_date >= ? AND expense_date <= ?`,
-        [startOfYear, endOfYear]
-      );
-
-      const incomeData = await db.get(
-        `SELECT SUM(amount) as total FROM income WHERE income_date >= ? AND income_date <= ?`,
-        [startOfYear, endOfYear]
-      );
-
-      const totalExpenses = expensesData?.total || 0;
-      const totalAdditionalIncome = incomeData?.total || 0;
+      const totalSalesRevenue = data.reduce((sum, month) => sum + month.salesRevenue, 0);
+      const totalCosts = data.reduce((sum, month) => sum + month.productCosts, 0);
+      const totalExpenses = data.reduce((sum, month) => sum + month.additionalExpenses, 0);
+      const totalAdditionalIncome = data.reduce((sum, month) => sum + month.additionalIncome, 0);
+      const totalRevenue = totalSalesRevenue;
       
       // Calculate profit: Revenue + Additional Income - Costs - Expenses
       const totalProfit = (totalRevenue + totalAdditionalIncome) - (totalCosts + totalExpenses);
       const profitMargin = (totalRevenue + totalAdditionalIncome) > 0 ? (totalProfit / (totalRevenue + totalAdditionalIncome)) * 100 : 0;
+      const { startDate: startOfYear, endDate: endOfYear } = getYearDateRange(selectedYear);
       const invoiceCount = await db.get(
         `SELECT COUNT(*) as count FROM invoices 
          WHERE invoice_date >= ? AND invoice_date <= ? AND status != 'draft'`,
@@ -239,8 +216,8 @@ const RevenueTrackingPage: React.FC = () => {
               <YAxis />
               <Tooltip formatter={(value) => formatCurrency(Number(value ?? 0))} />
               <Legend />
-              <Bar dataKey="revenue" fill="#10b981" name={t('revenue')} />
-              <Bar dataKey="costs" fill="#f97316" name={t('costs')} />
+              <Bar dataKey="revenue" fill="#10b981" name={`${t('revenue')} + ${t('additionalIncome')}`} />
+              <Bar dataKey="costs" fill="#f97316" name={`${t('costs')} + ${t('otherExpenses')}`} />
             </BarChart>
           </ResponsiveContainer>
         </Card>
@@ -268,7 +245,7 @@ const RevenueTrackingPage: React.FC = () => {
       </div>
 
       {/* Profit Breakdown */}
-      {yearlyStats && yearlyStats.totalRevenue > 0 && (
+      {yearlyStats && (yearlyStats.totalRevenue > 0 || yearlyStats.totalAdditionalIncome > 0) && (
         <Card className="p-6">
           <h2 className="text-lg font-semibold mb-4">{t('revenueBreakdown')}</h2>
           <div className="flex items-center justify-center">
@@ -276,9 +253,10 @@ const RevenueTrackingPage: React.FC = () => {
               <PieChart>
                 <Pie
                   data={[
-                    { name: t('profit'), value: yearlyStats.totalProfit },
-                    { name: t('costs'), value: yearlyStats.totalCosts },
-                  ]}
+                    { name: t('costs'), value: Math.max(yearlyStats.totalCosts, 0) },
+                    { name: t('otherExpenses'), value: Math.max(yearlyStats.totalExpenses, 0) },
+                    { name: t('profit'), value: Math.max(yearlyStats.totalProfit, 0) },
+                  ].filter((entry) => entry.value > 0)}
                   cx="50%"
                   cy="50%"
                   labelLine={false}
@@ -289,8 +267,9 @@ const RevenueTrackingPage: React.FC = () => {
                   fill="#8884d8"
                   dataKey="value"
                 >
-                  <Cell fill="#10b981" />
                   <Cell fill="#f97316" />
+                  <Cell fill="#ef4444" />
+                  <Cell fill="#10b981" />
                 </Pie>
                 <Tooltip formatter={(value) => formatCurrency(Number(value ?? 0))} />
               </PieChart>
@@ -309,7 +288,11 @@ const RevenueTrackingPage: React.FC = () => {
             <thead className="bg-muted/50 border-b border-border">
               <tr>
                 <th className="px-6 py-3 text-left text-sm font-semibold">{t('date')}</th>
+                <th className="px-6 py-3 text-right text-sm font-semibold">{t('totalRevenue')}</th>
+                <th className="px-6 py-3 text-right text-sm font-semibold">{t('additionalIncome')}</th>
                 <th className="px-6 py-3 text-right text-sm font-semibold">{t('revenue')}</th>
+                <th className="px-6 py-3 text-right text-sm font-semibold">{t('totalCosts')}</th>
+                <th className="px-6 py-3 text-right text-sm font-semibold">{t('otherExpenses')}</th>
                 <th className="px-6 py-3 text-right text-sm font-semibold">{t('costs')}</th>
                 <th className="px-6 py-3 text-right text-sm font-semibold">{t('profit')}</th>
                 <th className="px-6 py-3 text-right text-sm font-semibold">{t('margin')}</th>
@@ -321,9 +304,17 @@ const RevenueTrackingPage: React.FC = () => {
                 return (
                   <tr key={index} className="border-b border-border hover:bg-muted/30">
                     <td className="px-6 py-4 text-sm font-medium">{month.month}</td>
+                    <td className="px-6 py-4 text-sm text-right">{formatCurrency(month.salesRevenue)}</td>
+                    <td className="px-6 py-4 text-sm text-right">{formatCurrency(month.additionalIncome)}</td>
                     <td className="px-6 py-4 text-sm text-right">{formatCurrency(month.revenue)}</td>
+                    <td className="px-6 py-4 text-sm text-right">{formatCurrency(month.productCosts)}</td>
+                    <td className="px-6 py-4 text-sm text-right">{formatCurrency(month.additionalExpenses)}</td>
                     <td className="px-6 py-4 text-sm text-right">{formatCurrency(month.costs)}</td>
-                    <td className="px-6 py-4 text-sm text-right font-semibold text-green-600">
+                    <td
+                      className={`px-6 py-4 text-sm text-right font-semibold ${
+                        month.profit >= 0 ? 'text-green-600' : 'text-red-600'
+                      }`}
+                    >
                       {formatCurrency(month.profit)}
                     </td>
                     <td className="px-6 py-4 text-sm text-right">{margin}%</td>

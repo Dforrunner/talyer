@@ -19,7 +19,7 @@ interface LanguageContextType {
   setLanguage: (lang: Language) => Promise<void>;
   toggleLanguage: () => Promise<void>;
   t: (key: TranslationKey) => string;
-  formatCurrency: (amount: number, currency?: string) => string;
+  formatCurrency: (amount: number | null | undefined, currency?: string) => string;
   formatDate: (
     value: Date | string | number,
     options?: Intl.DateTimeFormatOptions,
@@ -116,13 +116,20 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({
     return translations[language][key] ?? translations.en[key] ?? key;
   };
 
-  const formatCurrency = (amount: number, currency = 'PHP') => {
+  const formatCurrency = (
+    amount: number | null | undefined,
+    currency = 'PHP',
+  ) => {
+    const normalizedAmount = Number.isFinite(Number(amount))
+      ? Number(amount)
+      : 0;
+
     return new Intl.NumberFormat(locale, {
       style: 'currency',
       currency,
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
-    }).format(amount);
+    }).format(normalizedAmount);
   };
 
   const formatDate = (

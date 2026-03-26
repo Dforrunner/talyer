@@ -1,4 +1,12 @@
-import { safeDbQuery, safeDbGet, safeDbRun, getElectronAPI } from './electron-api';
+import {
+  safeDbQuery,
+  safeDbGet,
+  safeDbRun,
+  getElectronAPI,
+  safeFileSave,
+  safeFileExists,
+} from './electron-api';
+import { getLocalDateInputValue, getMonthDateRange } from './date-utils';
 
 // Database utility functions for the renderer process
 export const db = {
@@ -28,8 +36,6 @@ export const db = {
     }
   },
 };
-
-import { safeFileSave, safeFileExists } from './electron-api';
 
 export const file = {
   async save(filename: string, data: any, subdir?: string) {
@@ -70,6 +76,24 @@ export const app = {
     }
   },
 };
+
+const normalizeAmount = (value: unknown) => {
+  const amount = Number(value);
+  return Number.isFinite(amount) ? amount : 0;
+};
+
+const roundCurrency = (value: number) => Math.round(value * 100) / 100;
+
+export interface MonthlyFinancialSummary {
+  salesRevenue: number;
+  additionalIncome: number;
+  revenue: number;
+  productCosts: number;
+  additionalExpenses: number;
+  costs: number;
+  profit: number;
+  invoiceCount: number;
+}
 
 // Business Settings
 export async function getBusinessSettings() {
@@ -159,8 +183,8 @@ export async function generateInvoiceNumber() {
   const day = String(today.getDate()).padStart(2, '0');
   
   const count = await db.get(
-    'SELECT COUNT(*) as count FROM invoices WHERE invoice_date >= date(?)',
-    [new Date().toISOString().split('T')[0]]
+    'SELECT COUNT(*) as count FROM invoices WHERE DATE(invoice_date) = DATE(?)',
+    [getLocalDateInputValue(today)]
   );
   
   const sequence = String((count?.count || 0) + 1).padStart(4, '0');
@@ -203,11 +227,20 @@ export async function getInvoiceItems(invoiceId: number) {
 }
 
 export async function createInvoiceItem(item: any) {
-  const { invoice_id, product_id, item_type, description, quantity, unit_price, amount } = item;
+  const {
+    invoice_id,
+    product_id,
+    item_type,
+    description,
+    quantity,
+    unit_price,
+    cost_price,
+    amount,
+  } = item;
   return db.run(
-    `INSERT INTO invoice_items (invoice_id, product_id, item_type, description, quantity, unit_price, amount)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-    [invoice_id, product_id, item_type, description, quantity, unit_price, amount]
+    `INSERT INTO invoice_items (invoice_id, product_id, item_type, description, quantity, unit_price, cost_price, amount)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [invoice_id, product_id, item_type, description, quantity, unit_price, cost_price ?? null, amount]
   );
 }
 
@@ -217,8 +250,7 @@ export async function deleteInvoiceItem(id: number) {
 
 // Revenue and Profit
 export async function getMonthlyRevenue(year: number, month: number) {
-  const startDate = new Date(year, month - 1, 1).toISOString().split('T')[0];
-  const endDate = new Date(year, month, 0).toISOString().split('T')[0];
+  const { startDate, endDate } = getMonthDateRange(year, month);
   
   return db.get(
     `SELECT 
@@ -231,31 +263,73 @@ export async function getMonthlyRevenue(year: number, month: number) {
 }
 
 export async function getMonthlyCosts(year: number, month: number) {
-  const startDate = new Date(year, month - 1, 1).toISOString().split('T')[0];
-  const endDate = new Date(year, month, 0).toISOString().split('T')[0];
+  const { startDate, endDate } = getMonthDateRange(year, month);
   
   return db.get(
-    `SELECT SUM(ii.quantity * ii.unit_price) as total_cost
+    `SELECT SUM(ii.quantity * COALESCE(ii.cost_price, p.cost_price, 0)) as total_cost
      FROM invoice_items ii
      JOIN invoices i ON ii.invoice_id = i.id
+     LEFT JOIN products p ON ii.product_id = p.id
      WHERE ii.product_id IS NOT NULL AND i.invoice_date >= ? AND i.invoice_date <= ? AND i.status != 'draft'`,
     [startDate, endDate]
   );
 }
 
-export async function getMonthlyProfit(year: number, month: number) {
-  const revenue = await getMonthlyRevenue(year, month);
-  const costs = await getMonthlyCosts(year, month);
-  
-  const totalRevenue = revenue?.total_revenue || 0;
-  const totalCost = costs?.total_cost || 0;
-  
+export async function getMonthlyAdditionalIncome(year: number, month: number) {
+  const { startDate, endDate } = getMonthDateRange(year, month);
+
+  return db.get(
+    `SELECT SUM(amount) as total_income
+     FROM income
+     WHERE income_date >= ? AND income_date <= ?`,
+    [startDate, endDate]
+  );
+}
+
+export async function getMonthlyAdditionalExpenses(year: number, month: number) {
+  const { startDate, endDate } = getMonthDateRange(year, month);
+
+  return db.get(
+    `SELECT SUM(amount) as total_expenses
+     FROM expenses
+     WHERE expense_date >= ? AND expense_date <= ?`,
+    [startDate, endDate]
+  );
+}
+
+export async function getMonthlyFinancialSummary(
+  year: number,
+  month: number,
+): Promise<MonthlyFinancialSummary> {
+  const [revenue, costs, additionalIncome, additionalExpenses] =
+    await Promise.all([
+      getMonthlyRevenue(year, month),
+      getMonthlyCosts(year, month),
+      getMonthlyAdditionalIncome(year, month),
+      getMonthlyAdditionalExpenses(year, month),
+    ]);
+
+  const salesRevenue = normalizeAmount(revenue?.total_revenue);
+  const productCosts = normalizeAmount(costs?.total_cost);
+  const extraIncome = normalizeAmount(additionalIncome?.total_income);
+  const extraExpenses = normalizeAmount(additionalExpenses?.total_expenses);
+  const totalRevenue = salesRevenue + extraIncome;
+  const totalCosts = productCosts + extraExpenses;
+
   return {
-    revenue: totalRevenue,
-    costs: totalCost,
-    profit: totalRevenue - totalCost,
-    invoiceCount: revenue?.invoice_count || 0,
+    salesRevenue: roundCurrency(salesRevenue),
+    additionalIncome: roundCurrency(extraIncome),
+    revenue: roundCurrency(totalRevenue),
+    productCosts: roundCurrency(productCosts),
+    additionalExpenses: roundCurrency(extraExpenses),
+    costs: roundCurrency(totalCosts),
+    profit: roundCurrency(totalRevenue - totalCosts),
+    invoiceCount: normalizeAmount(revenue?.invoice_count),
   };
+}
+
+export async function getMonthlyProfit(year: number, month: number) {
+  return getMonthlyFinancialSummary(year, month);
 }
 
 // Audit Log
@@ -278,6 +352,14 @@ declare global {
       };
       file: {
         save: (filename: string, data: any, subdir?: string) => Promise<string>;
+        saveAs: (options: {
+          defaultFileName: string;
+          data: any;
+          filters?: Array<{
+            name: string;
+            extensions: string[];
+          }>;
+        }) => Promise<string | null>;
         exists: (filepath: string) => Promise<boolean>;
         read: (filepath: string) => Promise<string>;
       };
