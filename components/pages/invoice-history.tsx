@@ -1,13 +1,20 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import {
+  CheckCircle,
+  Download,
+  Eye,
+  Pencil,
+  Trash2,
+  Clock,
+} from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Eye, Download, Trash2, CheckCircle, Clock } from 'lucide-react';
-import { db } from '@/lib/db';
-import { safeFileExists } from '@/lib/electron-api';
+import { db, file } from '@/lib/db';
 import { useLanguage } from '@/hooks/use-language';
+import { generateInvoicePdfForInvoice } from '@/lib/invoice-pdf';
 import InvoiceDetailModal from '@/components/modals/invoice-detail-modal';
 
 interface Invoice {
@@ -15,12 +22,24 @@ interface Invoice {
   invoice_number: string;
   customer_name: string;
   invoice_date: string;
+  created_at: string;
+  paid_at: string | null;
   total: number;
-  status: string;
-  pdf_path: string;
+  status: 'draft' | 'open' | 'paid';
+  pdf_path: string | null;
+  vehicle_make: string | null;
+  vehicle_model: string | null;
+  vehicle_year: string | null;
+  license_plate: string | null;
 }
 
-const InvoiceHistoryPage: React.FC = () => {
+interface InvoiceHistoryPageProps {
+  onEditInvoice: (invoiceId: number) => void;
+}
+
+const InvoiceHistoryPage: React.FC<InvoiceHistoryPageProps> = ({
+  onEditInvoice,
+}) => {
   const { formatCurrency, formatDate, t } = useLanguage();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [filteredInvoices, setFilteredInvoices] = useState<Invoice[]>([]);
@@ -31,54 +50,82 @@ const InvoiceHistoryPage: React.FC = () => {
   const [showDetails, setShowDetails] = useState(false);
 
   useEffect(() => {
-    loadInvoices();
+    void loadInvoices();
   }, []);
 
   useEffect(() => {
-    filterInvoices();
-  }, [invoices, searchTerm, filterStatus]);
+    let nextInvoices = invoices;
+
+    if (searchTerm.trim()) {
+      const query = searchTerm.toLowerCase();
+
+      nextInvoices = nextInvoices.filter((invoice) => {
+        const vehicleText = [
+          invoice.vehicle_year,
+          invoice.vehicle_make,
+          invoice.vehicle_model,
+          invoice.license_plate,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase();
+
+        return (
+          invoice.invoice_number.toLowerCase().includes(query) ||
+          invoice.customer_name.toLowerCase().includes(query) ||
+          vehicleText.includes(query)
+        );
+      });
+    }
+
+    if (filterStatus !== 'all') {
+      nextInvoices = nextInvoices.filter((invoice) => invoice.status === filterStatus);
+    }
+
+    setFilteredInvoices(nextInvoices);
+  }, [filterStatus, invoices, searchTerm]);
 
   const loadInvoices = async () => {
     try {
       setLoading(true);
       const result = await db.query(
-        'SELECT id, invoice_number, customer_name, invoice_date, total, status, pdf_path FROM invoices ORDER BY invoice_date DESC'
+        `SELECT id, invoice_number, customer_name, invoice_date, created_at,
+                paid_at, total, status, pdf_path, vehicle_make, vehicle_model,
+                vehicle_year, license_plate
+         FROM invoices
+         ORDER BY created_at DESC, id DESC`,
       );
-      setInvoices(result);
+      setInvoices(result || []);
     } catch (error) {
-      console.error('Error loading invoices:', error);
+      console.error('[InvoiceHistory] Error loading invoices:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const filterInvoices = () => {
-    let filtered = invoices;
-
-    if (searchTerm) {
-      filtered = filtered.filter(inv =>
-        inv.invoice_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        inv.customer_name.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-
-    if (filterStatus !== 'all') {
-      filtered = filtered.filter(inv => inv.status === filterStatus);
-    }
-
-    setFilteredInvoices(filtered);
-  };
-
   const handleDownloadPDF = async (invoice: Invoice) => {
     try {
-      if (invoice.pdf_path && await safeFileExists(invoice.pdf_path)) {
-        // File already exists, just open it
-        alert(`${t('pdfSavedAt')} ${invoice.pdf_path}`);
-      } else {
-        // Regenerate PDF
-        alert(t('generatingPdf'));
-        // For now, just alert
+      let pdfPath = invoice.pdf_path;
+
+      if (!pdfPath || !(await file.exists(pdfPath))) {
+        const generated = await generateInvoicePdfForInvoice(invoice.id);
+        pdfPath = generated.pdfPath;
       }
+
+      if (!pdfPath) {
+        throw new Error(t('errorDownloadingPdf'));
+      }
+
+      const savedPath = await file.saveCopy(
+        pdfPath,
+        `${invoice.invoice_number || 'invoice'}.pdf`,
+      );
+
+      if (savedPath) {
+        alert(`${t('pdfCopySavedAt')} ${savedPath}`);
+      }
+
+      await loadInvoices();
     } catch (error) {
       console.error('[InvoiceHistory] Error downloading PDF:', error);
       alert(t('errorDownloadingPdf'));
@@ -86,221 +133,299 @@ const InvoiceHistoryPage: React.FC = () => {
   };
 
   const handleDeleteInvoice = async (id: number) => {
-    if (window.confirm(t('deleteConfirm'))) {
+    if (!window.confirm(t('deleteConfirm'))) {
+      return;
+    }
+
+    try {
+      await db.exec('BEGIN');
+
       try {
-        await db.exec('BEGIN');
-        try {
-          const invoiceItems = await db.query(
-            'SELECT product_id, quantity FROM invoice_items WHERE invoice_id = ? AND product_id IS NOT NULL',
-            [id]
+        const invoiceItems = await db.query(
+          `SELECT product_id, quantity
+           FROM invoice_items
+           WHERE invoice_id = ? AND product_id IS NOT NULL`,
+          [id],
+        );
+
+        for (const item of invoiceItems || []) {
+          await db.run(
+            'UPDATE products SET quantity_in_stock = quantity_in_stock + ? WHERE id = ?',
+            [item.quantity, item.product_id],
           );
-
-          for (const item of invoiceItems) {
-            await db.run(
-              'UPDATE products SET quantity_in_stock = quantity_in_stock + ? WHERE id = ?',
-              [item.quantity, item.product_id]
-            );
-          }
-
-          await db.run('DELETE FROM invoices WHERE id = ?', [id]);
-          await db.exec('COMMIT');
-        } catch (transactionError) {
-          await db.exec('ROLLBACK');
-          throw transactionError;
         }
 
-        await loadInvoices();
+        await db.run('DELETE FROM invoices WHERE id = ?', [id]);
+        await db.exec('COMMIT');
       } catch (error) {
-        console.error('Error deleting invoice:', error);
-        alert(t('errorDeletingInvoice'));
+        await db.exec('ROLLBACK');
+        throw error;
       }
+
+      await loadInvoices();
+    } catch (error) {
+      console.error('[InvoiceHistory] Error deleting invoice:', error);
+      alert(t('errorDeletingInvoice'));
     }
   };
 
   const handleMarkAsPaid = async (id: number) => {
     try {
-      await db.run('UPDATE invoices SET status = ? WHERE id = ?', ['paid', id]);
+      await db.run(
+        `UPDATE invoices
+         SET status = 'paid', paid = 1, paid_at = CURRENT_TIMESTAMP,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [id],
+      );
       await loadInvoices();
     } catch (error) {
-      console.error('Error updating invoice:', error);
+      console.error('[InvoiceHistory] Error updating invoice:', error);
       alert(t('errorUpdatingInvoice'));
     }
   };
 
-  const handleViewDetails = (invoice: Invoice) => {
-    setSelectedInvoice(invoice);
-    setShowDetails(true);
+  const getStatusBadge = (status: Invoice['status']) => {
+    if (status === 'paid') {
+      return {
+        label: t('paid'),
+        className: 'bg-green-100 text-green-700',
+        icon: <CheckCircle className="h-3 w-3" />,
+      };
+    }
+
+    if (status === 'draft') {
+      return {
+        label: t('draft'),
+        className: 'bg-blue-100 text-blue-700',
+        icon: <Clock className="h-3 w-3" />,
+      };
+    }
+
+    return {
+      label: t('openInvoice'),
+      className: 'bg-amber-100 text-amber-700',
+      icon: <Clock className="h-3 w-3" />,
+    };
   };
 
-  const getTotalRevenue = () => {
-    return filteredInvoices
-      .filter(inv => inv.status !== 'draft')
-      .reduce((sum, inv) => sum + inv.total, 0);
-  };
+  const getTotalRevenue = () =>
+    filteredInvoices
+      .filter((invoice) => invoice.status !== 'draft')
+      .reduce((sum, invoice) => sum + (Number(invoice.total) || 0), 0);
 
-  const getDraftCount = () => {
-    return filteredInvoices.filter(inv => inv.status === 'draft').length;
-  };
+  const getDraftCount = () =>
+    filteredInvoices.filter((invoice) => invoice.status === 'draft').length;
+
+  const getVehicleSummary = (invoice: Invoice) =>
+    [
+      invoice.vehicle_year,
+      invoice.vehicle_make,
+      invoice.vehicle_model,
+      invoice.license_plate ? `(${invoice.license_plate})` : null,
+    ]
+      .filter(Boolean)
+      .join(' ');
 
   return (
-    <div className="p-8 space-y-8">
-      {/* Header */}
+    <div className="space-y-8 p-8">
       <div>
         <h1 className="text-3xl font-bold text-foreground">{t('invoiceHistory')}</h1>
-        <p className="text-muted-foreground mt-1">{t('invoiceHistoryDesc')}</p>
+        <p className="mt-1 text-muted-foreground">{t('invoiceHistoryDesc')}</p>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <Card className="p-4">
           <p className="text-sm text-muted-foreground">{t('totalInvoices')}</p>
-          <p className="text-2xl font-bold mt-1">{filteredInvoices.length}</p>
+          <p className="mt-1 text-2xl font-bold">{filteredInvoices.length}</p>
         </Card>
         <Card className="p-4">
           <p className="text-sm text-muted-foreground">{t('totalRevenue')}</p>
-          <p className="text-2xl font-bold mt-1">{formatCurrency(getTotalRevenue())}</p>
+          <p className="mt-1 text-2xl font-bold">
+            {formatCurrency(getTotalRevenue())}
+          </p>
         </Card>
         <Card className="p-4">
           <p className="text-sm text-muted-foreground">{t('draftInvoices')}</p>
-          <p className="text-2xl font-bold mt-1 text-blue-600">{getDraftCount()}</p>
+          <p className="mt-1 text-2xl font-bold text-blue-600">
+            {getDraftCount()}
+          </p>
         </Card>
       </div>
 
-      {/* Search and Filters */}
       <Card className="p-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           <Input
             placeholder={t('searchInvoiceOrCustomer')}
             value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
+            onChange={(event) => setSearchTerm(event.target.value)}
           />
           <select
             value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="px-3 py-2 border border-input rounded-md bg-background text-foreground"
+            onChange={(event) => setFilterStatus(event.target.value)}
+            className="rounded-md border border-input bg-background px-3 py-2 text-foreground"
           >
             <option value="all">{t('allStatuses')}</option>
             <option value="draft">{t('draft')}</option>
-            <option value="sent">{t('sent')}</option>
+            <option value="open">{t('openInvoice')}</option>
             <option value="paid">{t('paid')}</option>
           </select>
         </div>
       </Card>
 
-      {/* Invoices Table */}
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full">
-            <thead className="bg-muted/50 border-b border-border">
+            <thead className="border-b border-border bg-muted/50">
               <tr>
-                <th className="px-6 py-3 text-left text-sm font-semibold">{t('invoiceNumber')}</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold">{t('customer')}</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold">{t('date')}</th>
-                <th className="px-6 py-3 text-right text-sm font-semibold">{t('amount')}</th>
-                <th className="px-6 py-3 text-center text-sm font-semibold">{t('status')}</th>
-                <th className="px-6 py-3 text-right text-sm font-semibold">{t('actions')}</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold">
+                  {t('invoiceNumber')}
+                </th>
+                <th className="px-6 py-3 text-left text-sm font-semibold">
+                  {t('customer')}
+                </th>
+                <th className="px-6 py-3 text-left text-sm font-semibold">
+                  {t('receivedDate')}
+                </th>
+                <th className="px-6 py-3 text-left text-sm font-semibold">
+                  {t('createdDate')}
+                </th>
+                <th className="px-6 py-3 text-left text-sm font-semibold">
+                  {t('paymentDate')}
+                </th>
+                <th className="px-6 py-3 text-right text-sm font-semibold">
+                  {t('amount')}
+                </th>
+                <th className="px-6 py-3 text-center text-sm font-semibold">
+                  {t('status')}
+                </th>
+                <th className="px-6 py-3 text-right text-sm font-semibold">
+                  {t('actions')}
+                </th>
               </tr>
             </thead>
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-muted-foreground">
+                  <td colSpan={8} className="px-6 py-8 text-center text-muted-foreground">
                     {t('loadingInvoices')}
                   </td>
                 </tr>
               ) : filteredInvoices.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-muted-foreground">
-                    No invoices found.
+                  <td colSpan={8} className="px-6 py-8 text-center text-muted-foreground">
+                    {t('noInvoices')}
                   </td>
                 </tr>
               ) : (
-                filteredInvoices.map(invoice => (
-                  <tr
-                    key={invoice.id}
-                    className="border-b border-border hover:bg-muted/30 transition-colors"
-                  >
-                    <td className="px-6 py-4">
-                      <span className="font-semibold text-sm">{invoice.invoice_number}</span>
-                    </td>
-                    <td className="px-6 py-4 text-sm">{invoice.customer_name}</td>
-                    <td className="px-6 py-4 text-sm text-muted-foreground">
-                      {formatDate(invoice.invoice_date)}
-                    </td>
-                    <td className="px-6 py-4 text-sm font-semibold text-right">
-                      {formatCurrency(invoice.total)}
-                    </td>
-                    <td className="px-6 py-4 text-center">
-                      <span
-                        className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${
-                          invoice.status === 'paid'
-                            ? 'bg-green-100 text-green-700'
-                            : invoice.status === 'draft'
-                            ? 'bg-blue-100 text-blue-700'
-                            : 'bg-amber-100 text-amber-700'
-                        }`}
-                      >
-                        {invoice.status === 'paid' ? (
-                          <CheckCircle className="w-3 h-3" />
-                        ) : (
-                          <Clock className="w-3 h-3" />
+                filteredInvoices.map((invoice) => {
+                  const statusBadge = getStatusBadge(invoice.status);
+
+                  return (
+                    <tr
+                      key={invoice.id}
+                      className="border-b border-border transition-colors hover:bg-muted/30"
+                    >
+                      <td className="px-6 py-4">
+                        <div className="font-semibold text-sm">
+                          {invoice.invoice_number}
+                        </div>
+                        {invoice.license_plate && (
+                          <div className="text-xs text-muted-foreground">
+                            {invoice.license_plate}
+                          </div>
                         )}
-                        {invoice.status === 'paid'
-                          ? t('paid')
-                          : invoice.status === 'draft'
-                            ? t('draft')
-                            : t('sent')}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleViewDetails(invoice)}
-                          title={t('viewDetails')}
+                      </td>
+                      <td className="px-6 py-4 text-sm">
+                        <div>{invoice.customer_name}</div>
+                        {getVehicleSummary(invoice) && (
+                          <div className="text-xs text-muted-foreground">
+                            {getVehicleSummary(invoice)}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-muted-foreground">
+                        {formatDate(invoice.invoice_date)}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-muted-foreground">
+                        {formatDate(invoice.created_at)}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-muted-foreground">
+                        {invoice.paid_at ? formatDate(invoice.paid_at) : '-'}
+                      </td>
+                      <td className="px-6 py-4 text-right text-sm font-semibold">
+                        {formatCurrency(invoice.total)}
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <span
+                          className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium ${statusBadge.className}`}
                         >
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDownloadPDF(invoice)}
-                          title={t('downloadPdf')}
-                        >
-                          <Download className="w-4 h-4" />
-                        </Button>
-                        {invoice.status === 'draft' && (
+                          {statusBadge.icon}
+                          {statusBadge.label}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleMarkAsPaid(invoice.id)}
-                            title={t('markAsPaid')}
-                            className="text-green-600 hover:text-green-700"
+                            onClick={() => {
+                              setSelectedInvoice(invoice);
+                              setShowDetails(true);
+                            }}
+                            title={t('viewDetails')}
                           >
-                            <CheckCircle className="w-4 h-4" />
+                            <Eye className="h-4 w-4" />
                           </Button>
-                        )}
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => handleDeleteInvoice(invoice.id)}
-                          title={t('delete')}
-                          className="text-destructive hover:text-destructive"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => void handleDownloadPDF(invoice)}
+                            title={t('downloadPdfCopy')}
+                          >
+                            <Download className="h-4 w-4" />
+                          </Button>
+                          {invoice.status === 'draft' && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => onEditInvoice(invoice.id)}
+                              title={t('editDraft')}
+                            >
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {invoice.status === 'open' && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => void handleMarkAsPaid(invoice.id)}
+                              title={t('markAsPaid')}
+                              className="text-green-600 hover:text-green-700"
+                            >
+                              <CheckCircle className="h-4 w-4" />
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => void handleDeleteInvoice(invoice.id)}
+                            title={t('delete')}
+                            className="text-destructive hover:text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
         </div>
       </Card>
 
-      {/* Invoice Detail Modal */}
       {showDetails && selectedInvoice && (
         <InvoiceDetailModal
           invoice={selectedInvoice}

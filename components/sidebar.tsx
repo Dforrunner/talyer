@@ -14,9 +14,19 @@ import {
   History,
   Download,
   DollarSign,
+  ClipboardList,
 } from 'lucide-react';
 
-type Page = 'dashboard' | 'inventory' | 'business-settings' | 'invoices' | 'invoice-history' | 'revenue-tracking' | 'data-management' | 'expenses-income';
+type Page =
+  | 'dashboard'
+  | 'inventory'
+  | 'business-settings'
+  | 'invoices'
+  | 'active-invoices'
+  | 'invoice-history'
+  | 'revenue-tracking'
+  | 'data-management'
+  | 'expenses-income';
 
 interface SidebarProps {
   currentPage: Page;
@@ -28,6 +38,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, onPageChange, lowStockCo
   const { t } = useLanguage();
   const menuItems = [
     { id: 'invoices' as Page, label: t('createInvoice'), icon: PlusCircle, highlight: true },
+    { id: 'active-invoices' as Page, label: t('activeInvoices'), icon: ClipboardList },
     { id: 'dashboard' as Page, label: t('dashboard'), icon: LayoutDashboard },
     { id: 'inventory' as Page, label: t('inventory'), icon: Package, badge: lowStockCount > 0 ? lowStockCount : null },
     { id: 'invoice-history' as Page, label: t('invoiceHistory'), icon: History },

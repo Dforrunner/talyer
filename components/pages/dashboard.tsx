@@ -143,7 +143,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ onLowStockUpdate, onNavig
             className="p-4 h-auto flex flex-col items-start gap-2 hover:bg-primary/5"
           >
             <Plus className="w-5 h-5" />
-            <div className="text-left">
+            <div className="text-left text-wrap">
               <p className="font-semibold text-sm">{t('createInvoice')}</p>
               <p className="text-xs text-muted-foreground">{t('createInvoiceDesc')}</p>
             </div>
@@ -154,7 +154,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ onLowStockUpdate, onNavig
             className="p-4 h-auto flex flex-col items-start gap-2 hover:bg-green-50"
           >
             <Package className="w-5 h-5" />
-            <div className="text-left">
+            <div className="text-left text-wrap">
               <p className="font-semibold text-sm">{t('manageInventory')}</p>
               <p className="text-xs text-muted-foreground">{t('manageInventoryDesc')}</p>
             </div>
@@ -165,7 +165,7 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ onLowStockUpdate, onNavig
             className="p-4 h-auto flex flex-col items-start gap-2 hover:bg-purple-50"
           >
             <BarChart3 className="w-5 h-5" />
-            <div className="text-left">
+            <div className="text-left text-wrap">
               <p className="font-semibold text-sm">{t('viewReports')}</p>
               <p className="text-xs text-muted-foreground">{t('viewReportsDesc')}</p>
             </div>

@@ -46,6 +46,20 @@ export const file = {
     return safeFileExists(filepath);
   },
 
+  async saveCopy(sourcePath: string, defaultFileName?: string) {
+    try {
+      const api = getElectronAPI();
+      if (!api?.file?.saveCopy) {
+        console.warn('[File] File save-copy API not available');
+        return null;
+      }
+      return await api.file.saveCopy(sourcePath, defaultFileName);
+    } catch (error) {
+      console.error('[File] Save-copy error:', error);
+      throw error;
+    }
+  },
+
   async read(filepath: string) {
     try {
       const api = getElectronAPI();
@@ -360,6 +374,10 @@ declare global {
             extensions: string[];
           }>;
         }) => Promise<string | null>;
+        saveCopy: (
+          sourcePath: string,
+          defaultFileName?: string,
+        ) => Promise<string | null>;
         exists: (filepath: string) => Promise<boolean>;
         read: (filepath: string) => Promise<string>;
       };

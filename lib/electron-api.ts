@@ -130,6 +130,23 @@ export const safeFileSaveAs = async (options: FileSaveDialogOptions) => {
   }
 };
 
+export const safeFileSaveCopy = async (
+  sourcePath: string,
+  defaultFileName?: string,
+) => {
+  try {
+    const api = getElectronAPI();
+    if (!api?.file?.saveCopy) {
+      console.warn('[File] File save-copy API not available');
+      return null;
+    }
+    return await api.file.saveCopy(sourcePath, defaultFileName);
+  } catch (error) {
+    console.error('[File] Save-copy error:', error);
+    throw error;
+  }
+};
+
 // Safe PDF generation
 export const safePdfGenerate = async (invoiceData: any, businessData: any) => {
   try {

@@ -17,7 +17,7 @@ interface Product {
   selling_price: number;
   quantity_in_stock: number;
   low_stock_threshold: number;
-  sku: string;
+  sku: string | null;
   category: string;
   unit: string;
 }
@@ -87,7 +87,7 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onLowStockUpdate }) => {
 
   const filteredProducts = products.filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         product.sku.toLowerCase().includes(searchTerm.toLowerCase());
+                         (product.sku || '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = filterCategory === 'all' || product.category === filterCategory;
     return matchesSearch && matchesCategory;
   });
@@ -180,7 +180,7 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onLowStockUpdate }) => {
                           </div>
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-sm text-muted-foreground">{product.sku}</td>
+                      <td className="px-6 py-4 text-sm text-muted-foreground">{product.sku || '-'}</td>
                       <td className="px-6 py-4 text-sm">{product.category}</td>
                       <td className="px-6 py-4 text-sm text-right">{formatCurrency(product.cost_price)}</td>
                       <td className="px-6 py-4 text-sm text-right font-semibold">{formatCurrency(product.selling_price)}</td>

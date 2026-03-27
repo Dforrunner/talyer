@@ -7,6 +7,11 @@ import { Input } from '@/components/ui/input';
 import { X } from 'lucide-react';
 import { db } from '@/lib/db';
 import { useLanguage } from '@/hooks/use-language';
+import {
+  buildProductSkuPrefix,
+  generateProductSku,
+  normalizeSku,
+} from '@/lib/sku-utils';
 
 interface Product {
   id?: number;
@@ -16,7 +21,7 @@ interface Product {
   selling_price: number;
   quantity_in_stock: number;
   low_stock_threshold: number;
-  sku: string;
+  sku: string | null;
   category: string;
   unit: string;
 }
@@ -50,9 +55,18 @@ const ProductModal: React.FC<ProductModalProps> = ({ product, onClose, onSave })
 
   useEffect(() => {
     if (product) {
-      setFormData(product);
+      setFormData({
+        ...product,
+        sku: product.sku || '',
+      });
     }
   }, [product]);
+
+  const autoSkuPreview = buildProductSkuPrefix({
+    name: formData.name,
+    category: formData.category,
+    unit: formData.unit,
+  });
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -75,15 +89,22 @@ const ProductModal: React.FC<ProductModalProps> = ({ product, onClose, onSave })
         return;
       }
 
-      if (!formData.sku.trim()) {
-        setError(t('skuRequired'));
-        return;
-      }
-
       if (formData.cost_price < 0 || formData.selling_price < 0) {
         setError(t('pricesCannotBeNegative'));
         return;
       }
+
+      const normalizedManualSku = normalizeSku(formData.sku || '');
+      const finalSku = normalizedManualSku
+        ? normalizedManualSku
+        : await generateProductSku(
+            {
+              name: formData.name,
+              category: formData.category,
+              unit: formData.unit,
+            },
+            product?.id,
+          );
 
       if (product?.id) {
         // Update existing product
@@ -99,7 +120,7 @@ const ProductModal: React.FC<ProductModalProps> = ({ product, onClose, onSave })
             formData.selling_price,
             formData.quantity_in_stock,
             formData.low_stock_threshold,
-            formData.sku,
+            finalSku,
             formData.category,
             formData.unit,
             product.id
@@ -117,7 +138,7 @@ const ProductModal: React.FC<ProductModalProps> = ({ product, onClose, onSave })
             formData.selling_price,
             formData.quantity_in_stock,
             formData.low_stock_threshold,
-            formData.sku,
+            finalSku,
             formData.category,
             formData.unit
           ]
@@ -126,7 +147,12 @@ const ProductModal: React.FC<ProductModalProps> = ({ product, onClose, onSave })
 
       onSave();
     } catch (err: any) {
-      setError(err.message || t('errorSavingProduct'));
+      const message =
+        typeof err?.message === 'string' &&
+        err.message.toLowerCase().includes('unique')
+          ? t('skuAlreadyExists')
+          : err?.message || t('errorSavingProduct');
+      setError(message);
     } finally {
       setLoading(false);
     }
@@ -169,14 +195,21 @@ const ProductModal: React.FC<ProductModalProps> = ({ product, onClose, onSave })
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2">{t('sku')} *</label>
+                <label className="block text-sm font-medium mb-2">{t('sku')}</label>
                 <Input
                   name="sku"
-                  value={formData.sku}
+                  value={formData.sku || ''}
                   onChange={handleChange}
-                  placeholder={t('sku')}
-                  required
+                  placeholder={t('skuOptionalPlaceholder')}
                 />
+                <p className="text-xs text-muted-foreground mt-2">
+                  {t('skuAutoGenerateHelp')}
+                </p>
+                {!(formData.sku || '').trim() && formData.name.trim() && (
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {t('skuPreviewLabel')} {autoSkuPreview}-001
+                  </p>
+                )}
               </div>
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium mb-2">{t('description')}</label>

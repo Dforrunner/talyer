@@ -4,10 +4,12 @@ import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PhoneInput } from "@/components/ui/phone-input";
 import { Upload } from "lucide-react";
 import { db } from "@/lib/db";
 import { safeFileSave, getElectronAPI } from "@/lib/electron-api";
 import { useLanguage, type Language } from "@/hooks/use-language";
+import { normalizePhilippinePhone } from "@/lib/phone-utils";
 
 interface BusinessSettings {
   id: number;
@@ -58,7 +60,7 @@ const BusinessSettingsPage: React.FC = () => {
           address: result.address || "",
           city: result.city || "",
           postal_code: result.postal_code || "",
-          phone: result.phone || "",
+          phone: normalizePhilippinePhone(result.phone || ""),
           email: result.email || "",
           tax_id: result.tax_id || "",
           currency: result.currency || "PHP",
@@ -204,7 +206,7 @@ const BusinessSettingsPage: React.FC = () => {
           settings.address,
           settings.city,
           settings.postal_code,
-          settings.phone,
+          normalizePhilippinePhone(settings.phone),
           settings.email,
           settings.tax_id,
           settings.currency,
@@ -220,6 +222,7 @@ const BusinessSettingsPage: React.FC = () => {
           ? {
               ...prev,
               logo_path: logoPath,
+              phone: normalizePhilippinePhone(prev.phone),
             }
           : prev,
       );
@@ -343,11 +346,18 @@ const BusinessSettingsPage: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium mb-2">{t("phone")}</label>
-              <Input
-                name="phone"
+              <PhoneInput
                 value={settings.phone}
-                onChange={handleChange}
-                placeholder="(555) 123-4567"
+                onValueChange={(value) =>
+                  setSettings((prev) =>
+                    prev
+                      ? {
+                          ...prev,
+                          phone: value,
+                        }
+                      : prev,
+                  )
+                }
               />
             </div>
             <div>
