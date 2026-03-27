@@ -5,11 +5,13 @@ import { BookUser, CarFront, Mail, Phone, ReceiptText } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { SortableTableHeader } from '@/components/ui/sortable-table-header';
 import { useAppDialog } from '@/hooks/use-app-dialog';
 import { useLanguage } from '@/hooks/use-language';
 import { db } from '@/lib/db';
 import { normalizePhilippinePhone } from '@/lib/phone-utils';
 import { type CustomerContactFields } from '@/lib/customer-contacts';
+import { getNextSortConfig, sortRows, type SortConfig } from '@/lib/table-sort';
 
 interface InvoiceContactRow {
   id: number;
@@ -35,6 +37,14 @@ interface CustomerContactRecord extends CustomerContactFields {
 interface CustomerContactsPageProps {
   onUseContact: (contact: CustomerContactFields) => void | Promise<void>;
 }
+
+type CustomerContactSortKey =
+  | 'customer_name'
+  | 'customer_phone'
+  | 'customer_email'
+  | 'vehicle'
+  | 'last_invoice_date'
+  | 'invoice_count';
 
 const toText = (value: unknown) => String(value || '').trim();
 
@@ -64,6 +74,10 @@ const CustomerContactsPage: React.FC<CustomerContactsPageProps> = ({
   const [contacts, setContacts] = useState<CustomerContactRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [sortConfig, setSortConfig] = useState<SortConfig<CustomerContactSortKey>>({
+    key: 'customer_name',
+    direction: 'asc',
+  });
 
   useEffect(() => {
     void loadContacts();
@@ -155,27 +169,30 @@ const CustomerContactsPage: React.FC<CustomerContactsPageProps> = ({
 
   const contactsWithPhone = contacts.filter((contact) => contact.customer_phone).length;
   const contactsWithEmail = contacts.filter((contact) => contact.customer_email).length;
+  const sortedContacts = sortRows(filteredContacts, sortConfig, (contact, key) => {
+    switch (key) {
+      case 'customer_name':
+        return contact.customer_name;
+      case 'customer_phone':
+        return contact.customer_phone;
+      case 'customer_email':
+        return contact.customer_email;
+      case 'vehicle':
+        return buildVehicleSummary(contact);
+      case 'last_invoice_date':
+        return contact.last_invoice_date;
+      case 'invoice_count':
+        return Number(contact.invoice_count) || 0;
+      default:
+        return '';
+    }
+  });
 
   return (
     <div className="space-y-8 p-8">
       <div>
         <h1 className="text-3xl font-bold text-foreground">{t('customerContacts')}</h1>
         <p className="mt-1 text-muted-foreground">{t('customerContactsDesc')}</p>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-        <Card className="p-4">
-          <p className="text-sm text-muted-foreground">{t('customerContacts')}</p>
-          <p className="mt-1 text-2xl font-bold">{contacts.length}</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-sm text-muted-foreground">{t('phone')}</p>
-          <p className="mt-1 text-2xl font-bold">{contactsWithPhone}</p>
-        </Card>
-        <Card className="p-4">
-          <p className="text-sm text-muted-foreground">{t('email')}</p>
-          <p className="mt-1 text-2xl font-bold">{contactsWithEmail}</p>
-        </Card>
       </div>
 
       <Card className="p-4">
@@ -191,25 +208,80 @@ const CustomerContactsPage: React.FC<CustomerContactsPageProps> = ({
           <table className="w-full min-w-[1120px]">
             <thead className="border-b border-border bg-muted/50">
               <tr>
-                <th className="px-6 py-3 text-left text-sm font-semibold whitespace-nowrap">
-                  {t('customer')}
+                <th className="px-6 py-3 text-left whitespace-nowrap">
+                  <SortableTableHeader
+                    label={t('customer')}
+                    sortKey="customer_name"
+                    sortConfig={sortConfig}
+                    onSort={(key) =>
+                      setSortConfig((current) =>
+                        getNextSortConfig(current, key as CustomerContactSortKey),
+                      )
+                    }
+                  />
                 </th>
-                <th className="w-px px-6 py-3 text-left text-sm font-semibold whitespace-nowrap">
-                  {t('phone')}
+                <th className="w-px px-6 py-3 text-left whitespace-nowrap">
+                  <SortableTableHeader
+                    label={t('phone')}
+                    sortKey="customer_phone"
+                    sortConfig={sortConfig}
+                    onSort={(key) =>
+                      setSortConfig((current) =>
+                        getNextSortConfig(current, key as CustomerContactSortKey),
+                      )
+                    }
+                  />
                 </th>
-                <th className="px-6 py-3 text-left text-sm font-semibold whitespace-nowrap">
-                  {t('email')}
+                <th className="px-6 py-3 text-left whitespace-nowrap">
+                  <SortableTableHeader
+                    label={t('email')}
+                    sortKey="customer_email"
+                    sortConfig={sortConfig}
+                    onSort={(key) =>
+                      setSortConfig((current) =>
+                        getNextSortConfig(current, key as CustomerContactSortKey),
+                      )
+                    }
+                  />
                 </th>
-                <th className="px-6 py-3 text-left text-sm font-semibold whitespace-nowrap">
-                  {t('lastVehicle')}
+                <th className="px-6 py-3 text-left whitespace-nowrap">
+                  <SortableTableHeader
+                    label={t('lastVehicle')}
+                    sortKey="vehicle"
+                    sortConfig={sortConfig}
+                    onSort={(key) =>
+                      setSortConfig((current) =>
+                        getNextSortConfig(current, key as CustomerContactSortKey),
+                      )
+                    }
+                  />
                 </th>
-                <th className="w-px px-6 py-3 text-left text-sm font-semibold whitespace-nowrap">
-                  {t('lastInvoiceDate')}
+                <th className="w-px px-6 py-3 text-left whitespace-nowrap">
+                  <SortableTableHeader
+                    label={t('lastInvoiceDate')}
+                    sortKey="last_invoice_date"
+                    sortConfig={sortConfig}
+                    onSort={(key) =>
+                      setSortConfig((current) =>
+                        getNextSortConfig(current, key as CustomerContactSortKey, 'desc'),
+                      )
+                    }
+                  />
                 </th>
-                <th className="w-px px-6 py-3 text-right text-sm font-semibold whitespace-nowrap">
-                  {t('totalVisits')}
+                <th className="w-px px-6 py-3 text-right whitespace-nowrap">
+                  <SortableTableHeader
+                    label={t('totalVisits')}
+                    sortKey="invoice_count"
+                    sortConfig={sortConfig}
+                    onSort={(key) =>
+                      setSortConfig((current) =>
+                        getNextSortConfig(current, key as CustomerContactSortKey, 'desc'),
+                      )
+                    }
+                    align="right"
+                  />
                 </th>
-                <th className="w-px px-6 py-3 text-right text-sm font-semibold whitespace-nowrap">
+                <th className="w-px px-6 py-3  text-sm font-semibold whitespace-nowrap">
                   {t('actions')}
                 </th>
               </tr>
@@ -221,14 +293,14 @@ const CustomerContactsPage: React.FC<CustomerContactsPageProps> = ({
                     {t('loading')}
                   </td>
                 </tr>
-              ) : filteredContacts.length === 0 ? (
+              ) : sortedContacts.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="px-6 py-8 text-center text-muted-foreground">
                     {t('noCustomerContacts')}
                   </td>
                 </tr>
               ) : (
-                filteredContacts.map((contact) => {
+                sortedContacts.map((contact) => {
                   const vehicleSummary = buildVehicleSummary(contact);
 
                   return (
@@ -308,4 +380,3 @@ const CustomerContactsPage: React.FC<CustomerContactsPageProps> = ({
 };
 
 export default CustomerContactsPage;
-

@@ -27,12 +27,48 @@ export const translations = {
     viewAll: "View All",
     welcomeMessage: "Welcome to your shop management system",
     quickActions: "Quick Actions",
+    quickStartGuide: "Quick Start Guide",
+    quickStartGuideDesc:
+      "Follow these steps in order if this is your first time using the app.",
+    frequentlyAskedQuestions: "Frequently Asked Questions",
+    faqIntro:
+      "Short answers for common questions from first-time users.",
     actionRequired: "Action required",
     createInvoiceDesc: "Start a new invoice for your customers",
     manageInventory: "Manage Inventory",
     manageInventoryDesc: "Update product stock and pricing",
     viewReports: "View Reports",
     viewReportsDesc: "Check your revenue and profit",
+    tutorialStep1Title: "Set up your shop details",
+    tutorialStep1Desc:
+      "Start in Business Settings. Add your shop name, contact number, logo, and tax rate so your invoices look complete.",
+    tutorialStep2Title: "Add your products and prices",
+    tutorialStep2Desc:
+      "Go to Inventory and add the items you sell or use. If you do not know what SKU to type, leave it blank and the app will make one for you.",
+    tutorialStep3Title: "Create a draft when the vehicle arrives",
+    tutorialStep3Desc:
+      "Open Create Invoice, enter the customer and vehicle details, then save the invoice as a draft while the work is still ongoing.",
+    tutorialStep4Title: "Keep updating the active job",
+    tutorialStep4Desc:
+      "Use Active Invoices to continue the same draft. Add labor, products, and notes as the repair work moves forward.",
+    tutorialStep5Title: "Finish, print, and collect payment",
+    tutorialStep5Desc:
+      "When the vehicle is ready, complete the invoice, print or download the PDF, then mark it as paid from Invoice History.",
+    tutorialStep6Title: "Reuse saved customer details",
+    tutorialStep6Desc:
+      "Open Customer Contacts to quickly start a new invoice using details already collected from past invoices.",
+    faqQuestion1: "Do I need to fill in every field before saving?",
+    faqAnswer1:
+      "No. To save a draft, the customer name is enough. You can come back later and finish the rest when the job is ready.",
+    faqQuestion2: "What should I do if the product stock is not updated yet?",
+    faqAnswer2:
+      "You can still save the invoice. The app will not block the sale just because the stock count was not updated yet.",
+    faqQuestion3: "Where do customer contacts come from?",
+    faqAnswer3:
+      "They are collected automatically from your saved invoices. Open Customer Contacts to reuse them on a new draft.",
+    faqQuestion4: "How do I move this app to another computer?",
+    faqAnswer4:
+      "Use Data Management to export your data on the old computer, then import that file on the new computer.",
 
     // Inventory
     products: "Products",
@@ -379,6 +415,11 @@ export const translations = {
     success: "Success",
     warning: "Warning",
     confirm: "Confirm",
+    clickToSort: "Click to sort",
+    clickToSortAscending: "Click to sort ascending",
+    clickToSortDescending: "Click to sort descending",
+    sortedAscending: "Sorted ascending",
+    sortedDescending: "Sorted descending",
     english: "English",
     tagalog: "Tagalog",
     php: "₱",
@@ -413,12 +454,48 @@ export const translations = {
     viewAll: "Tingnan Lahat",
     welcomeMessage: "Welcome sa shop management system mo",
     quickActions: "Mabilis na Gawain",
+    quickStartGuide: "Mabilis na Gabay",
+    quickStartGuideDesc:
+      "Sundin ang mga hakbang na ito kung unang gamit mo pa lang ng app.",
+    frequentlyAskedQuestions: "Mga Madalas Itanong",
+    faqIntro:
+      "Maiikling sagot para sa karaniwang tanong ng mga bagong user.",
     actionRequired: "May kailangang gawin",
     createInvoiceDesc: "Gumawa ng bagong invoice para sa customer",
     manageInventory: "Ayusin ang Inventory",
     manageInventoryDesc: "I-update ang stock at presyo",
     viewReports: "Tingnan ang Ulat",
     viewReportsDesc: "Check ang kita at tubo",
+    tutorialStep1Title: "Ayusin muna ang detalye ng shop",
+    tutorialStep1Desc:
+      "Pumunta sa Settings ng Negosyo. Ilagay ang pangalan ng shop, contact number, logo, at tax rate para kumpleto ang invoice mo.",
+    tutorialStep2Title: "Ilagay ang mga produkto at presyo",
+    tutorialStep2Desc:
+      "Pumunta sa Inventory at ilagay ang mga item na binebenta o ginagamit mo. Kung hindi mo alam ang SKU, iwanan mo lang na blanko at app na ang gagawa.",
+    tutorialStep3Title: "Gumawa ng draft pagdating ng sasakyan",
+    tutorialStep3Desc:
+      "Buksan ang Gumawa ng Invoice, ilagay ang detalye ng customer at sasakyan, tapos i-save muna bilang draft habang ginagawa pa ang trabaho.",
+    tutorialStep4Title: "I-update ang aktibong trabaho",
+    tutorialStep4Desc:
+      "Gamitin ang Aktibong Invoice para ituloy ang parehong draft. Magdagdag ng labor, produkto, at notes habang umuusad ang repair.",
+    tutorialStep5Title: "Tapusin, i-print, at singilin",
+    tutorialStep5Desc:
+      "Kapag handa na ang sasakyan, tapusin ang invoice, i-print o i-download ang PDF, tapos markahan bilang bayad sa History ng Invoice.",
+    tutorialStep6Title: "Gamitin ulit ang saved na customer details",
+    tutorialStep6Desc:
+      "Buksan ang Contact ng Customer para mabilis makagawa ng bagong invoice gamit ang dati nang detalye ng customer.",
+    faqQuestion1: "Kailangan bang punuin lahat bago mag-save?",
+    faqAnswer1:
+      "Hindi. Para makapag-save ng draft, sapat na ang pangalan ng customer. Pwede mong balikan ang iba pang detalye mamaya.",
+    faqQuestion2: "Ano ang gagawin ko kung hindi pa updated ang stock?",
+    faqAnswer2:
+      "Pwede mo pa ring i-save ang invoice. Hindi haharangin ng app ang sale kahit hindi pa updated ang bilang ng stock.",
+    faqQuestion3: "Saan nanggagaling ang contact ng customer?",
+    faqAnswer3:
+      "Awtomatiko itong kinukuha mula sa mga na-save mong invoice. Buksan ang Contact ng Customer para magamit ulit sa bagong draft.",
+    faqQuestion4: "Paano ko ililipat ang app sa ibang computer?",
+    faqAnswer4:
+      "Gamitin ang Ayos ng Data para mag-export sa lumang computer, tapos i-import ang file na iyon sa bagong computer.",
 
     // Inventory
     products: "Mga Produkto",
@@ -766,6 +843,11 @@ export const translations = {
     success: "Tagumpay",
     warning: "Warning",
     confirm: "Kumpirmahin",
+    clickToSort: "I-click para i-sort",
+    clickToSortAscending: "I-click para i-sort pataas",
+    clickToSortDescending: "I-click para i-sort pababa",
+    sortedAscending: "Naka-sort pataas",
+    sortedDescending: "Naka-sort pababa",
     english: "English",
     tagalog: "Tagalog",
     php: "₱",

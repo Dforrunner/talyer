@@ -4,10 +4,12 @@ import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { SortableTableHeader } from '@/components/ui/sortable-table-header';
 import { useAppDialog } from '@/hooks/use-app-dialog';
 import { Plus, Trash2, Edit2, Repeat } from 'lucide-react';
 import { db } from '@/lib/db';
 import { useLanguage } from '@/hooks/use-language';
+import { getNextSortConfig, sortRows, type SortConfig } from '@/lib/table-sort';
 import {
   addRecurringInterval,
   getLocalDateInputValue,
@@ -63,6 +65,8 @@ interface ExpenseIncomeFormState {
   recurring_frequency: RecurringFrequency;
 }
 
+type EntrySortKey = 'category' | 'description' | 'date' | 'amount';
+
 const createEmptyFormData = (): ExpenseIncomeFormState => ({
   category: '',
   description: '',
@@ -91,6 +95,10 @@ const ExpensesIncomePage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
+  const [sortConfig, setSortConfig] = useState<SortConfig<EntrySortKey>>({
+    key: 'date',
+    direction: 'desc',
+  });
   const [formData, setFormData] = useState<ExpenseIncomeFormState>(
     createEmptyFormData(),
   );
@@ -466,6 +474,26 @@ const ExpensesIncomePage: React.FC = () => {
 
     return matchesSearch && matchesCategory;
   });
+  const sortedDisplayItems = sortRows(
+    filteredDisplayItems,
+    sortConfig,
+    (item, key) => {
+      switch (key) {
+        case 'category':
+          return item.category;
+        case 'description':
+          return item.description || '';
+        case 'date':
+          return activeTab === 'expenses'
+            ? (item as Expense).expense_date
+            : (item as IncomeEntry).income_date;
+        case 'amount':
+          return Number(item.amount) || 0;
+        default:
+          return '';
+      }
+    },
+  );
 
   const totalAmount = filteredDisplayItems.reduce(
     (sum, item) => sum + item.amount,
@@ -798,17 +826,54 @@ const ExpensesIncomePage: React.FC = () => {
             <table className="w-full min-w-[860px]">
               <thead className="bg-muted/50 border-b border-border">
                 <tr>
-                  <th className="w-px px-6 py-3 text-left text-sm font-semibold whitespace-nowrap">
-                    {t('category')}
+                  <th className="w-px px-6 py-3 text-left whitespace-nowrap">
+                    <SortableTableHeader
+                      label={t('category')}
+                      sortKey="category"
+                      sortConfig={sortConfig}
+                      onSort={(key) =>
+                        setSortConfig((current) =>
+                          getNextSortConfig(current, key as EntrySortKey),
+                        )
+                      }
+                    />
                   </th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold">
-                    {t('description')}
+                  <th className="px-6 py-3 text-left">
+                    <SortableTableHeader
+                      label={t('description')}
+                      sortKey="description"
+                      sortConfig={sortConfig}
+                      onSort={(key) =>
+                        setSortConfig((current) =>
+                          getNextSortConfig(current, key as EntrySortKey),
+                        )
+                      }
+                    />
                   </th>
-                  <th className="w-px px-6 py-3 text-left text-sm font-semibold whitespace-nowrap">
-                    {t('date')}
+                  <th className="w-px px-6 py-3 text-left whitespace-nowrap">
+                    <SortableTableHeader
+                      label={t('date')}
+                      sortKey="date"
+                      sortConfig={sortConfig}
+                      onSort={(key) =>
+                        setSortConfig((current) =>
+                          getNextSortConfig(current, key as EntrySortKey, 'desc'),
+                        )
+                      }
+                    />
                   </th>
-                  <th className="w-px px-6 py-3 text-right text-sm font-semibold whitespace-nowrap">
-                    {t('amount')}
+                  <th className="w-px px-6 py-3 text-right whitespace-nowrap">
+                    <SortableTableHeader
+                      label={t('amount')}
+                      sortKey="amount"
+                      sortConfig={sortConfig}
+                      onSort={(key) =>
+                        setSortConfig((current) =>
+                          getNextSortConfig(current, key as EntrySortKey, 'desc'),
+                        )
+                      }
+                      align="right"
+                    />
                   </th>
                   <th className="w-px px-6 py-3 text-right text-sm font-semibold whitespace-nowrap">
                     {t('actions')}
@@ -816,7 +881,7 @@ const ExpensesIncomePage: React.FC = () => {
                 </tr>
               </thead>
               <tbody>
-                {filteredDisplayItems.map((item) => (
+                {sortedDisplayItems.map((item) => (
                   <tr
                     key={item.id}
                     className="border-b border-border hover:bg-muted/30"

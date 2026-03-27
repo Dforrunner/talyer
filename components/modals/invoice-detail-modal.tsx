@@ -5,6 +5,7 @@ import { Printer, X } from 'lucide-react';
 import { AppBrand } from '@/components/ui/app-brand';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { SortableTableHeader } from '@/components/ui/sortable-table-header';
 import { db } from '@/lib/db';
 import { useLanguage } from '@/hooks/use-language';
 import InvoicePreview from '@/components/invoice-preview';
@@ -16,11 +17,14 @@ import {
   resolveInvoiceLanguage,
 } from '@/lib/invoice-utils';
 import { normalizePhilippinePhone } from '@/lib/phone-utils';
+import { getNextSortConfig, sortRows, type SortConfig } from '@/lib/table-sort';
 
 interface InvoiceDetailModalProps {
   invoice: { id: number };
   onClose: () => void;
 }
+
+type InvoiceItemSortKey = 'description' | 'quantity' | 'unit_price' | 'amount';
 
 const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
   invoice,
@@ -32,6 +36,10 @@ const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
   const [businessSettings, setBusinessSettings] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showPreview, setShowPreview] = useState(false);
+  const [sortConfig, setSortConfig] = useState<SortConfig<InvoiceItemSortKey>>({
+    key: 'description',
+    direction: 'asc',
+  });
 
   useEffect(() => {
     void loadInvoiceDetails();
@@ -119,6 +127,20 @@ const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
   const dueDateText = invoiceData.due_upon_receipt
     ? invoiceT('paymentDueUponReceipt')
     : formatDocDate(invoiceData.due_date);
+  const sortedItems = sortRows(items, sortConfig, (item, key) => {
+    switch (key) {
+      case 'description':
+        return item.description || item.product_name || '';
+      case 'quantity':
+        return Number(item.quantity) || 0;
+      case 'unit_price':
+        return Number(item.unit_price) || 0;
+      case 'amount':
+        return Number(item.amount) || 0;
+      default:
+        return '';
+    }
+  });
 
   const statusLabel =
     invoiceData.status === 'paid'
@@ -247,17 +269,56 @@ const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
                 <table className="w-full min-w-[560px]">
                   <thead className="border-b border-border bg-muted/50">
                     <tr>
-                      <th className="px-4 py-2 text-left text-sm font-semibold">
-                        {t('description')}
+                      <th className="px-4 py-2 text-left">
+                        <SortableTableHeader
+                          label={t('description')}
+                          sortKey="description"
+                          sortConfig={sortConfig}
+                          onSort={(key) =>
+                            setSortConfig((current) =>
+                              getNextSortConfig(current, key as InvoiceItemSortKey),
+                            )
+                          }
+                        />
                       </th>
-                      <th className="w-px px-4 py-2 text-right text-sm font-semibold whitespace-nowrap">
-                        {t('quantityShort')}
+                      <th className="w-px px-4 py-2 text-right whitespace-nowrap">
+                        <SortableTableHeader
+                          label={t('quantityShort')}
+                          sortKey="quantity"
+                          sortConfig={sortConfig}
+                          onSort={(key) =>
+                            setSortConfig((current) =>
+                              getNextSortConfig(current, key as InvoiceItemSortKey, 'desc'),
+                            )
+                          }
+                          align="right"
+                        />
                       </th>
-                      <th className="w-px px-4 py-2 text-right text-sm font-semibold whitespace-nowrap">
-                        {t('unitPrice')}
+                      <th className="w-px px-4 py-2 text-right whitespace-nowrap">
+                        <SortableTableHeader
+                          label={t('unitPrice')}
+                          sortKey="unit_price"
+                          sortConfig={sortConfig}
+                          onSort={(key) =>
+                            setSortConfig((current) =>
+                              getNextSortConfig(current, key as InvoiceItemSortKey, 'desc'),
+                            )
+                          }
+                          align="right"
+                        />
                       </th>
-                      <th className="w-px px-4 py-2 text-right text-sm font-semibold whitespace-nowrap">
-                        {t('amount')}
+                      <th className="w-px px-4 py-2 text-right whitespace-nowrap">
+                        <SortableTableHeader
+                          label={t('amount')}
+                          sortKey="amount"
+                          sortConfig={sortConfig}
+                          onSort={(key) =>
+                            setSortConfig((current) =>
+                              getNextSortConfig(current, key as InvoiceItemSortKey, 'desc'),
+                            )
+                          }
+                          align="right"
+                        />
                       </th>
                     </tr>
                   </thead>
@@ -272,7 +333,7 @@ const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
                         </td>
                       </tr>
                     ) : (
-                      items.map((item) => (
+                      sortedItems.map((item) => (
                         <tr
                           key={item.id}
                           className="border-b border-border last:border-b-0"

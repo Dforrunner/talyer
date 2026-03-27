@@ -2,13 +2,16 @@
 
 import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
+import { SortableTableHeader } from '@/components/ui/sortable-table-header';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import { db, getMonthlyFinancialSummary } from '@/lib/db';
 import { TrendingUp, DollarSign, ShoppingCart, Percent } from 'lucide-react';
 import { useLanguage } from '@/hooks/use-language';
 import { getYearDateRange } from '@/lib/date-utils';
+import { getNextSortConfig, sortRows, type SortConfig } from '@/lib/table-sort';
 
 interface MonthlyData {
+  monthIndex: number;
   month: string;
   salesRevenue: number;
   additionalIncome: number;
@@ -30,12 +33,26 @@ interface YearlyStats {
   averageInvoice: number;
 }
 
+type RevenueSortKey =
+  | 'monthIndex'
+  | 'salesRevenue'
+  | 'additionalIncome'
+  | 'revenue'
+  | 'productCosts'
+  | 'additionalExpenses'
+  | 'costs'
+  | 'profit';
+
 const RevenueTrackingPage: React.FC = () => {
   const { formatCurrency, formatMonth, language, t } = useLanguage();
   const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([]);
   const [yearlyStats, setYearlyStats] = useState<YearlyStats | null>(null);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
   const [loading, setLoading] = useState(true);
+  const [sortConfig, setSortConfig] = useState<SortConfig<RevenueSortKey>>({
+    key: 'monthIndex',
+    direction: 'asc',
+  });
 
   useEffect(() => {
     loadRevenueData();
@@ -50,6 +67,7 @@ const RevenueTrackingPage: React.FC = () => {
           const summary = await getMonthlyFinancialSummary(selectedYear, month);
 
           return {
+            monthIndex: month,
             month: formatMonth(new Date(selectedYear, month - 1, 1)),
             salesRevenue: summary.salesRevenue,
             additionalIncome: summary.additionalIncome,
@@ -113,6 +131,29 @@ const RevenueTrackingPage: React.FC = () => {
       </div>
     </Card>
   );
+
+  const sortedMonthlyData = sortRows(monthlyData, sortConfig, (month, key) => {
+    switch (key) {
+      case 'monthIndex':
+        return month.monthIndex;
+      case 'salesRevenue':
+        return month.salesRevenue;
+      case 'additionalIncome':
+        return month.additionalIncome;
+      case 'revenue':
+        return month.revenue;
+      case 'productCosts':
+        return month.productCosts;
+      case 'additionalExpenses':
+        return month.additionalExpenses;
+      case 'costs':
+        return month.costs;
+      case 'profit':
+        return month.profit;
+      default:
+        return 0;
+    }
+  });
 
   if (loading) {
     return (
@@ -287,22 +328,117 @@ const RevenueTrackingPage: React.FC = () => {
           <table className="w-full min-w-[1180px]">
             <thead className="bg-muted/50 border-b border-border">
               <tr>
-                <th className="w-px px-6 py-3 text-left text-sm font-semibold whitespace-nowrap">{t('date')}</th>
-                <th className="w-px px-6 py-3 text-right text-sm font-semibold whitespace-nowrap">{t('totalRevenue')}</th>
-                <th className="w-px px-6 py-3 text-right text-sm font-semibold whitespace-nowrap">{t('additionalIncome')}</th>
-                <th className="w-px px-6 py-3 text-right text-sm font-semibold whitespace-nowrap">{t('revenue')}</th>
-                <th className="w-px px-6 py-3 text-right text-sm font-semibold whitespace-nowrap">{t('totalCosts')}</th>
-                <th className="w-px px-6 py-3 text-right text-sm font-semibold whitespace-nowrap">{t('otherExpenses')}</th>
-                <th className="w-px px-6 py-3 text-right text-sm font-semibold whitespace-nowrap">{t('costs')}</th>
-                <th className="w-px px-6 py-3 text-right text-sm font-semibold whitespace-nowrap">{t('profit')}</th>
+                <th className="w-px px-6 py-3 text-left whitespace-nowrap">
+                  <SortableTableHeader
+                    label={t('date')}
+                    sortKey="monthIndex"
+                    sortConfig={sortConfig}
+                    onSort={(key) =>
+                      setSortConfig((current) =>
+                        getNextSortConfig(current, key as RevenueSortKey),
+                      )
+                    }
+                  />
+                </th>
+                <th className="w-px px-6 py-3 text-right whitespace-nowrap">
+                  <SortableTableHeader
+                    label={t('totalRevenue')}
+                    sortKey="salesRevenue"
+                    sortConfig={sortConfig}
+                    onSort={(key) =>
+                      setSortConfig((current) =>
+                        getNextSortConfig(current, key as RevenueSortKey, 'desc'),
+                      )
+                    }
+                    align="right"
+                  />
+                </th>
+                <th className="w-px px-6 py-3 text-right whitespace-nowrap">
+                  <SortableTableHeader
+                    label={t('additionalIncome')}
+                    sortKey="additionalIncome"
+                    sortConfig={sortConfig}
+                    onSort={(key) =>
+                      setSortConfig((current) =>
+                        getNextSortConfig(current, key as RevenueSortKey, 'desc'),
+                      )
+                    }
+                    align="right"
+                  />
+                </th>
+                <th className="w-px px-6 py-3 text-right whitespace-nowrap">
+                  <SortableTableHeader
+                    label={t('revenue')}
+                    sortKey="revenue"
+                    sortConfig={sortConfig}
+                    onSort={(key) =>
+                      setSortConfig((current) =>
+                        getNextSortConfig(current, key as RevenueSortKey, 'desc'),
+                      )
+                    }
+                    align="right"
+                  />
+                </th>
+                <th className="w-px px-6 py-3 text-right whitespace-nowrap">
+                  <SortableTableHeader
+                    label={t('totalCosts')}
+                    sortKey="productCosts"
+                    sortConfig={sortConfig}
+                    onSort={(key) =>
+                      setSortConfig((current) =>
+                        getNextSortConfig(current, key as RevenueSortKey, 'desc'),
+                      )
+                    }
+                    align="right"
+                  />
+                </th>
+                <th className="w-px px-6 py-3 text-right whitespace-nowrap">
+                  <SortableTableHeader
+                    label={t('otherExpenses')}
+                    sortKey="additionalExpenses"
+                    sortConfig={sortConfig}
+                    onSort={(key) =>
+                      setSortConfig((current) =>
+                        getNextSortConfig(current, key as RevenueSortKey, 'desc'),
+                      )
+                    }
+                    align="right"
+                  />
+                </th>
+                <th className="w-px px-6 py-3 text-right whitespace-nowrap">
+                  <SortableTableHeader
+                    label={t('costs')}
+                    sortKey="costs"
+                    sortConfig={sortConfig}
+                    onSort={(key) =>
+                      setSortConfig((current) =>
+                        getNextSortConfig(current, key as RevenueSortKey, 'desc'),
+                      )
+                    }
+                    align="right"
+                  />
+                </th>
+                <th className="w-px px-6 py-3 text-right whitespace-nowrap">
+                  <SortableTableHeader
+                    label={t('profit')}
+                    sortKey="profit"
+                    sortConfig={sortConfig}
+                    onSort={(key) =>
+                      setSortConfig((current) =>
+                        getNextSortConfig(current, key as RevenueSortKey, 'desc'),
+                      )
+                    }
+                    align="right"
+                  />
+                </th>
                 <th className="w-px px-6 py-3 text-right text-sm font-semibold whitespace-nowrap">{t('margin')}</th>
               </tr>
             </thead>
             <tbody>
-              {monthlyData.map((month, index) => {
+              {sortedMonthlyData.map((month) => {
                 const margin = month.revenue > 0 ? ((month.profit / month.revenue) * 100).toFixed(1) : '0';
                 return (
-                  <tr key={index} className="border-b border-border hover:bg-muted/30">
+                  <tr key={month.monthIndex} className="border-b border-border hover:bg-muted/30">
                     <td className="px-6 py-4 text-sm font-medium whitespace-nowrap">{month.month}</td>
                     <td className="px-6 py-4 text-sm text-right whitespace-nowrap">{formatCurrency(month.salesRevenue)}</td>
                     <td className="px-6 py-4 text-sm text-right whitespace-nowrap">{formatCurrency(month.additionalIncome)}</td>

@@ -4,10 +4,12 @@ import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { SortableTableHeader } from '@/components/ui/sortable-table-header';
 import { useAppDialog } from '@/hooks/use-app-dialog';
 import { Plus, Edit2, Trash2, AlertTriangle } from 'lucide-react';
 import { db } from '@/lib/db';
 import { useLanguage } from '@/hooks/use-language';
+import { getNextSortConfig, sortRows, type SortConfig } from '@/lib/table-sort';
 import ProductModal from '@/components/modals/product-modal';
 
 interface Product {
@@ -27,6 +29,14 @@ interface InventoryPageProps {
   onLowStockUpdate?: (count: number) => void;
 }
 
+type ProductSortKey =
+  | 'name'
+  | 'sku'
+  | 'category'
+  | 'cost_price'
+  | 'selling_price'
+  | 'quantity_in_stock';
+
 const InventoryPage: React.FC<InventoryPageProps> = ({ onLowStockUpdate }) => {
   const { formatCurrency, t } = useLanguage();
   const { showConfirm } = useAppDialog();
@@ -37,6 +47,10 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onLowStockUpdate }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
   const [filterStock, setFilterStock] = useState('all');
+  const [sortConfig, setSortConfig] = useState<SortConfig<ProductSortKey>>({
+    key: 'name',
+    direction: 'asc',
+  });
 
   useEffect(() => {
     loadProducts();
@@ -105,6 +119,24 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onLowStockUpdate }) => {
       (filterStock === 'low' ? isLowStock : !isLowStock);
 
     return matchesSearch && matchesCategory && matchesStock;
+  });
+  const sortedProducts = sortRows(filteredProducts, sortConfig, (product, key) => {
+    switch (key) {
+      case 'name':
+        return product.name;
+      case 'sku':
+        return product.sku || '';
+      case 'category':
+        return product.category;
+      case 'cost_price':
+        return Number(product.cost_price) || 0;
+      case 'selling_price':
+        return Number(product.selling_price) || 0;
+      case 'quantity_in_stock':
+        return Number(product.quantity_in_stock) || 0;
+      default:
+        return '';
+    }
   });
 
   const categories = ['all', ...new Set(products.map((p) => p.category).filter(Boolean))];
@@ -176,12 +208,81 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onLowStockUpdate }) => {
           <table className="w-full min-w-[980px]">
             <thead className="bg-muted/50 border-b border-border">
               <tr>
-                <th className="px-6 py-3 text-left text-sm font-semibold">{t('productName')}</th>
-                <th className="w-px px-6 py-3 text-left text-sm font-semibold whitespace-nowrap">{t('sku')}</th>
-                <th className="w-px px-6 py-3 text-left text-sm font-semibold whitespace-nowrap">{t('category')}</th>
-                <th className="w-px px-6 py-3 text-right text-sm font-semibold whitespace-nowrap">{t('costPrice')}</th>
-                <th className="w-px px-6 py-3 text-right text-sm font-semibold whitespace-nowrap">{t('sellingPrice')}</th>
-                <th className="w-px px-6 py-3 text-right text-sm font-semibold whitespace-nowrap">{t('quantityInStock')}</th>
+                <th className="px-6 py-3 text-left">
+                  <SortableTableHeader
+                    label={t('productName')}
+                    sortKey="name"
+                    sortConfig={sortConfig}
+                    onSort={(key) =>
+                      setSortConfig((current) =>
+                        getNextSortConfig(current, key as ProductSortKey),
+                      )
+                    }
+                  />
+                </th>
+                <th className="w-px px-6 py-3 text-left whitespace-nowrap">
+                  <SortableTableHeader
+                    label={t('sku')}
+                    sortKey="sku"
+                    sortConfig={sortConfig}
+                    onSort={(key) =>
+                      setSortConfig((current) =>
+                        getNextSortConfig(current, key as ProductSortKey),
+                      )
+                    }
+                  />
+                </th>
+                <th className="w-px px-6 py-3 text-left whitespace-nowrap">
+                  <SortableTableHeader
+                    label={t('category')}
+                    sortKey="category"
+                    sortConfig={sortConfig}
+                    onSort={(key) =>
+                      setSortConfig((current) =>
+                        getNextSortConfig(current, key as ProductSortKey),
+                      )
+                    }
+                  />
+                </th>
+                <th className="w-px px-6 py-3 text-right whitespace-nowrap">
+                  <SortableTableHeader
+                    label={t('costPrice')}
+                    sortKey="cost_price"
+                    sortConfig={sortConfig}
+                    onSort={(key) =>
+                      setSortConfig((current) =>
+                        getNextSortConfig(current, key as ProductSortKey, 'desc'),
+                      )
+                    }
+                    align="right"
+                  />
+                </th>
+                <th className="w-px px-6 py-3 text-right whitespace-nowrap">
+                  <SortableTableHeader
+                    label={t('sellingPrice')}
+                    sortKey="selling_price"
+                    sortConfig={sortConfig}
+                    onSort={(key) =>
+                      setSortConfig((current) =>
+                        getNextSortConfig(current, key as ProductSortKey, 'desc'),
+                      )
+                    }
+                    align="right"
+                  />
+                </th>
+                <th className="w-px px-6 py-3 text-right whitespace-nowrap">
+                  <SortableTableHeader
+                    label={t('quantityInStock')}
+                    sortKey="quantity_in_stock"
+                    sortConfig={sortConfig}
+                    onSort={(key) =>
+                      setSortConfig((current) =>
+                        getNextSortConfig(current, key as ProductSortKey, 'desc'),
+                      )
+                    }
+                    align="right"
+                  />
+                </th>
                 <th className="w-px px-6 py-3 text-right text-sm font-semibold whitespace-nowrap">{t('actions')}</th>
               </tr>
             </thead>
@@ -199,7 +300,7 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onLowStockUpdate }) => {
                   </td>
                 </tr>
               ) : (
-                filteredProducts.map(product => {
+                sortedProducts.map(product => {
                   const isLowStock = product.quantity_in_stock <= product.low_stock_threshold;
                   return (
                     <tr

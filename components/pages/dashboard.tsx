@@ -3,14 +3,42 @@
 import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { AlertTriangle, Package, FileText, TrendingUp, Plus, BarChart3 } from 'lucide-react';
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from '@/components/ui/accordion';
+import {
+  AlertTriangle,
+  Package,
+  FileText,
+  TrendingUp,
+  Plus,
+  BarChart3,
+  BookOpen,
+  CircleHelp,
+  ContactRound,
+  Wrench,
+  Wallet,
+} from 'lucide-react';
 import { db } from '@/lib/db';
 import { useLanguage } from '@/hooks/use-language';
 import { getMonthDateRange } from '@/lib/date-utils';
 
 interface DashboardPageProps {
   onLowStockUpdate?: (count: number) => void;
-  onNavigate?: (page: 'invoices' | 'inventory' | 'revenue-tracking') => void;
+  onNavigate?: (
+    page:
+      | 'invoices'
+      | 'inventory'
+      | 'revenue-tracking'
+      | 'business-settings'
+      | 'active-invoices'
+      | 'invoice-history'
+      | 'customer-contacts'
+      | 'data-management',
+  ) => void;
 }
 
 interface Stats {
@@ -96,6 +124,80 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ onLowStockUpdate, onNavig
     </Card>
   );
 
+  const quickStartSteps = [
+    {
+      number: '01',
+      title: t('tutorialStep1Title'),
+      description: t('tutorialStep1Desc'),
+      actionLabel: t('businessSettings'),
+      actionPage: 'business-settings' as const,
+      icon: Wrench,
+    },
+    {
+      number: '02',
+      title: t('tutorialStep2Title'),
+      description: t('tutorialStep2Desc'),
+      actionLabel: t('inventory'),
+      actionPage: 'inventory' as const,
+      icon: Package,
+    },
+    {
+      number: '03',
+      title: t('tutorialStep3Title'),
+      description: t('tutorialStep3Desc'),
+      actionLabel: t('createInvoice'),
+      actionPage: 'invoices' as const,
+      icon: Plus,
+    },
+    {
+      number: '04',
+      title: t('tutorialStep4Title'),
+      description: t('tutorialStep4Desc'),
+      actionLabel: t('activeInvoices'),
+      actionPage: 'active-invoices' as const,
+      icon: FileText,
+    },
+    {
+      number: '05',
+      title: t('tutorialStep5Title'),
+      description: t('tutorialStep5Desc'),
+      actionLabel: t('invoiceHistory'),
+      actionPage: 'invoice-history' as const,
+      icon: Wallet,
+    },
+    {
+      number: '06',
+      title: t('tutorialStep6Title'),
+      description: t('tutorialStep6Desc'),
+      actionLabel: t('customerContacts'),
+      actionPage: 'customer-contacts' as const,
+      icon: ContactRound,
+    },
+  ];
+
+  const faqItems = [
+    {
+      value: 'faq-1',
+      question: t('faqQuestion1'),
+      answer: t('faqAnswer1'),
+    },
+    {
+      value: 'faq-2',
+      question: t('faqQuestion2'),
+      answer: t('faqAnswer2'),
+    },
+    {
+      value: 'faq-3',
+      question: t('faqQuestion3'),
+      answer: t('faqAnswer3'),
+    },
+    {
+      value: 'faq-4',
+      question: t('faqQuestion4'),
+      answer: t('faqAnswer4'),
+    },
+  ];
+
   return (
     <div className="p-8 space-y-8">
       {/* Header */}
@@ -172,6 +274,84 @@ const DashboardPage: React.FC<DashboardPageProps> = ({ onLowStockUpdate, onNavig
           </Button>
         </div>
       </Card>
+
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[1.2fr,0.8fr]">
+        <Card className="p-6">
+          <div className="mb-5 flex items-start gap-3">
+            <div className="rounded-xl bg-primary/10 p-3 text-primary">
+              <BookOpen className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold">{t('quickStartGuide')}</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {t('quickStartGuideDesc')}
+              </p>
+            </div>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            {quickStartSteps.map((step) => {
+              const Icon = step.icon;
+
+              return (
+                <div
+                  key={step.number}
+                  className="rounded-xl border border-border bg-muted/20 p-4"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold tracking-[0.2em] text-primary">
+                        {step.number}
+                      </p>
+                      <h3 className="mt-2 text-base font-semibold text-foreground">
+                        {step.title}
+                      </h3>
+                    </div>
+                    <div className="rounded-lg bg-background p-2 text-primary shadow-sm">
+                      <Icon className="h-4 w-4" />
+                    </div>
+                  </div>
+                  <p className="mt-3 text-sm leading-6 text-muted-foreground">
+                    {step.description}
+                  </p>
+                  <Button
+                    variant="outline"
+                    className="mt-4 w-full justify-center"
+                    onClick={() => onNavigate?.(step.actionPage)}
+                  >
+                    {step.actionLabel}
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+
+        <Card className="p-6">
+          <div className="mb-5 flex items-start gap-3">
+            <div className="rounded-xl bg-emerald-100 p-3 text-emerald-700">
+              <CircleHelp className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold">{t('frequentlyAskedQuestions')}</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {t('faqIntro')}
+              </p>
+            </div>
+          </div>
+          <Accordion type="single" collapsible className="w-full">
+            {faqItems.map((item) => (
+              <AccordionItem key={item.value} value={item.value}>
+                <AccordionTrigger className="text-left text-sm font-semibold">
+                  {item.question}
+                </AccordionTrigger>
+                <AccordionContent className="text-sm leading-6 text-muted-foreground">
+                  {item.answer}
+                </AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
+        </Card>
+      </div>
     </div>
   );
 };

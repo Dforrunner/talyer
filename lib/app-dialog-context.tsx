@@ -91,7 +91,7 @@ export function AppDialogProvider({ children }: { children: React.ReactNode }) {
         }}
       >
         {dialogState && (
-          <AlertDialogContent className="max-w-md">
+          <AlertDialogContent className="max-w-md" aria-describedby="General dialog">
             <AlertDialogHeader className="text-left">
               <AppBrand />
               <div className="space-y-2">

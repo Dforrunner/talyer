@@ -12,10 +12,12 @@ import {
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { SortableTableHeader } from '@/components/ui/sortable-table-header';
 import { useAppDialog } from '@/hooks/use-app-dialog';
 import { db, file } from '@/lib/db';
 import { useLanguage } from '@/hooks/use-language';
 import { generateInvoicePdfForInvoice } from '@/lib/invoice-pdf';
+import { getNextSortConfig, sortRows, type SortConfig } from '@/lib/table-sort';
 import InvoiceDetailModal from '@/components/modals/invoice-detail-modal';
 
 interface Invoice {
@@ -38,6 +40,15 @@ interface InvoiceHistoryPageProps {
   onEditInvoice: (invoiceId: number) => void;
 }
 
+type InvoiceSortKey =
+  | 'invoice_number'
+  | 'customer_name'
+  | 'invoice_date'
+  | 'created_at'
+  | 'paid_at'
+  | 'total'
+  | 'status';
+
 const InvoiceHistoryPage: React.FC<InvoiceHistoryPageProps> = ({
   onEditInvoice,
 }) => {
@@ -50,6 +61,10 @@ const InvoiceHistoryPage: React.FC<InvoiceHistoryPageProps> = ({
   const [filterStatus, setFilterStatus] = useState('all');
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [showDetails, setShowDetails] = useState(false);
+  const [sortConfig, setSortConfig] = useState<SortConfig<InvoiceSortKey>>({
+    key: 'created_at',
+    direction: 'desc',
+  });
 
   useEffect(() => {
     void loadInvoices();
@@ -248,6 +263,26 @@ const InvoiceHistoryPage: React.FC<InvoiceHistoryPageProps> = ({
     ]
       .filter(Boolean)
       .join(' ');
+  const sortedInvoices = sortRows(filteredInvoices, sortConfig, (invoice, key) => {
+    switch (key) {
+      case 'invoice_number':
+        return invoice.invoice_number;
+      case 'customer_name':
+        return invoice.customer_name;
+      case 'invoice_date':
+        return invoice.invoice_date;
+      case 'created_at':
+        return invoice.created_at;
+      case 'paid_at':
+        return invoice.paid_at || '';
+      case 'total':
+        return Number(invoice.total) || 0;
+      case 'status':
+        return invoice.status;
+      default:
+        return '';
+    }
+  });
 
   return (
     <div className="space-y-8 p-8">
@@ -300,26 +335,91 @@ const InvoiceHistoryPage: React.FC<InvoiceHistoryPageProps> = ({
           <table className="w-full min-w-[1100px]">
             <thead className="border-b border-border bg-muted/50">
               <tr>
-                <th className="w-px px-6 py-3 text-left text-sm font-semibold whitespace-nowrap">
-                  {t('invoiceNumber')}
+                <th className="w-px px-6 py-3 text-left whitespace-nowrap">
+                  <SortableTableHeader
+                    label={t('invoiceNumber')}
+                    sortKey="invoice_number"
+                    sortConfig={sortConfig}
+                    onSort={(key) =>
+                      setSortConfig((current) =>
+                        getNextSortConfig(current, key as InvoiceSortKey),
+                      )
+                    }
+                  />
                 </th>
-                <th className="px-6 py-3 text-left text-sm font-semibold">
-                  {t('customer')}
+                <th className="px-6 py-3 text-left">
+                  <SortableTableHeader
+                    label={t('customer')}
+                    sortKey="customer_name"
+                    sortConfig={sortConfig}
+                    onSort={(key) =>
+                      setSortConfig((current) =>
+                        getNextSortConfig(current, key as InvoiceSortKey),
+                      )
+                    }
+                  />
                 </th>
-                <th className="w-px px-6 py-3 text-left text-sm font-semibold whitespace-nowrap">
-                  {t('receivedDate')}
+                <th className="w-px px-6 py-3 text-left whitespace-nowrap">
+                  <SortableTableHeader
+                    label={t('receivedDate')}
+                    sortKey="invoice_date"
+                    sortConfig={sortConfig}
+                    onSort={(key) =>
+                      setSortConfig((current) =>
+                        getNextSortConfig(current, key as InvoiceSortKey, 'desc'),
+                      )
+                    }
+                  />
                 </th>
-                <th className="w-px px-6 py-3 text-left text-sm font-semibold whitespace-nowrap">
-                  {t('createdDate')}
+                <th className="w-px px-6 py-3 text-left whitespace-nowrap">
+                  <SortableTableHeader
+                    label={t('createdDate')}
+                    sortKey="created_at"
+                    sortConfig={sortConfig}
+                    onSort={(key) =>
+                      setSortConfig((current) =>
+                        getNextSortConfig(current, key as InvoiceSortKey, 'desc'),
+                      )
+                    }
+                  />
                 </th>
-                <th className="w-px px-6 py-3 text-left text-sm font-semibold whitespace-nowrap">
-                  {t('paymentDate')}
+                <th className="w-px px-6 py-3 text-left whitespace-nowrap">
+                  <SortableTableHeader
+                    label={t('paymentDate')}
+                    sortKey="paid_at"
+                    sortConfig={sortConfig}
+                    onSort={(key) =>
+                      setSortConfig((current) =>
+                        getNextSortConfig(current, key as InvoiceSortKey, 'desc'),
+                      )
+                    }
+                  />
                 </th>
-                <th className="w-px px-6 py-3 text-right text-sm font-semibold whitespace-nowrap">
-                  {t('amount')}
+                <th className="w-px px-6 py-3 text-right whitespace-nowrap">
+                  <SortableTableHeader
+                    label={t('amount')}
+                    sortKey="total"
+                    sortConfig={sortConfig}
+                    onSort={(key) =>
+                      setSortConfig((current) =>
+                        getNextSortConfig(current, key as InvoiceSortKey, 'desc'),
+                      )
+                    }
+                    align="right"
+                  />
                 </th>
-                <th className="w-px px-6 py-3 text-center text-sm font-semibold whitespace-nowrap">
-                  {t('status')}
+                <th className="w-px px-6 py-3 text-center whitespace-nowrap">
+                  <SortableTableHeader
+                    label={t('status')}
+                    sortKey="status"
+                    sortConfig={sortConfig}
+                    onSort={(key) =>
+                      setSortConfig((current) =>
+                        getNextSortConfig(current, key as InvoiceSortKey),
+                      )
+                    }
+                    align="center"
+                  />
                 </th>
                 <th className="w-px px-6 py-3 text-right text-sm font-semibold whitespace-nowrap">
                   {t('actions')}
@@ -340,7 +440,7 @@ const InvoiceHistoryPage: React.FC<InvoiceHistoryPageProps> = ({
                   </td>
                 </tr>
               ) : (
-                filteredInvoices.map((invoice) => {
+                sortedInvoices.map((invoice) => {
                   const statusBadge = getStatusBadge(invoice.status);
 
                   return (
