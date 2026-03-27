@@ -378,7 +378,7 @@ const BusinessSettingsPage: React.FC = () => {
   }
 
   return (
-    <div className="p-8 space-y-8 max-w-4xl">
+    <div className="p-8 space-y-8 max-w-4xl mx-auto">
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-foreground">

@@ -86,10 +86,6 @@ export function generateInvoicePDF(
         doc.text(`Email: ${businessData.email}`, 50, currentY);
         currentY += 12;
       }
-      if (businessData.tax_id) {
-        doc.text(`Tax ID: ${businessData.tax_id}`, 50, currentY);
-        currentY += 12;
-      }
 
       // Invoice header on the right
       doc.fontSize(20).font('Helvetica-Bold').fillColor(primaryColor);

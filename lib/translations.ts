@@ -165,7 +165,7 @@ export const translations = {
     date: "Date",
     status: "Status",
     actions: "Actions",
-    draft: "Burador",
+    draft: "Draft",
     sent: "Sent",
     paid: "Paid",
     markAsPaid: "Mark as Paid",
