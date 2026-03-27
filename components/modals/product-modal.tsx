@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
+import { AppBrand } from '@/components/ui/app-brand';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { X } from 'lucide-react';
@@ -163,7 +164,10 @@ const ProductModal: React.FC<ProductModalProps> = ({ product, onClose, onSave })
       <Card className="w-full max-w-2xl max-h-[90vh] overflow-y-auto">
         {/* Header */}
         <div className="sticky top-0 flex items-center justify-between p-6 border-b border-border bg-background">
-          <h2 className="text-xl font-bold">{product?.id ? t('editProduct') : t('addNewProduct')}</h2>
+          <div className="space-y-2">
+            <AppBrand compact subtitle={t('productInformation')} />
+            <h2 className="text-xl font-bold">{product?.id ? t('editProduct') : t('addNewProduct')}</h2>
+          </div>
           <button
             onClick={onClose}
             className="p-1 hover:bg-muted rounded-lg transition-colors"

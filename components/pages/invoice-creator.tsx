@@ -13,6 +13,7 @@ import {
   type Language,
   useLanguage,
 } from "@/hooks/use-language";
+import { useAppDialog } from "@/hooks/use-app-dialog";
 import { getLocalDateInputValue } from "@/lib/date-utils";
 import { buildInvoicePrintHtml } from "@/lib/invoice-print-html";
 import { generateInvoicePdfForInvoice } from "@/lib/invoice-pdf";
@@ -162,6 +163,7 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
   onEditorStateChange,
 }) => {
   const { formatCurrency, language, t } = useLanguage();
+  const { showAlert } = useAppDialog();
   const [products, setProducts] = useState<Product[]>([]);
   const [businessSettings, setBusinessSettings] = useState<any>(null);
   const [invoice, setInvoice] = useState<InvoiceForm>(
@@ -533,7 +535,7 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
     return `INV-${year}${month}${day}-${sequence}`;
   };
 
-  const validateInvoice = (
+  const validateInvoice = async (
     targetStatus: "draft" | "open",
     options: SaveInvoiceOptions = {},
   ) => {
@@ -541,14 +543,20 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
 
     if (!invoice.customer_name.trim()) {
       if (shouldAlert) {
-        alert(t("pleaseEnterCustomerName"));
+        await showAlert({
+          title: t("pleaseEnterCustomerName"),
+          confirmLabel: t("close"),
+        });
       }
       return false;
     }
 
     if (targetStatus === "open" && invoice.items.length === 0) {
       if (shouldAlert) {
-        alert(t("pleaseAddAtLeastOneItem"));
+        await showAlert({
+          title: t("pleaseAddAtLeastOneItem"),
+          confirmLabel: t("close"),
+        });
       }
       return false;
     }
@@ -556,14 +564,20 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
     for (const item of invoice.items) {
       if (item.type === "product" && !item.product_id) {
         if (shouldAlert) {
-          alert(t("selectProductBeforeSaving"));
+          await showAlert({
+            title: t("selectProductBeforeSaving"),
+            confirmLabel: t("close"),
+          });
         }
         return false;
       }
 
       if (item.type === "labor" && !item.description.trim()) {
         if (shouldAlert) {
-          alert(t("enterItemDescription"));
+          await showAlert({
+            title: t("enterItemDescription"),
+            confirmLabel: t("close"),
+          });
         }
         return false;
       }
@@ -573,7 +587,10 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
         Number(item.quantity) <= 0
       ) {
         if (shouldAlert) {
-          alert(t("enterValidItemQuantity"));
+          await showAlert({
+            title: t("enterValidItemQuantity"),
+            confirmLabel: t("close"),
+          });
         }
         return false;
       }
@@ -583,7 +600,10 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
         Number(item.unit_price) < 0
       ) {
         if (shouldAlert) {
-          alert(t("errorSavingInvoice"));
+          await showAlert({
+            title: t("errorSavingInvoice"),
+            confirmLabel: t("close"),
+          });
         }
         return false;
       }
@@ -596,7 +616,7 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
     targetStatus: "draft" | "open",
     options: SaveInvoiceOptions = {},
   ) => {
-    if (!validateInvoice(targetStatus, options)) {
+    if (!(await validateInvoice(targetStatus, options))) {
       return null;
     }
 
@@ -784,15 +804,20 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
 
         if (targetStatus === "draft") {
           if (!options.silent) {
-            alert(
+            await showAlert({
+              title:
               savedInvoiceNumber
                 ? t(invoice.id ? "draftUpdated" : "draftSaved")
                 : t("draftSaved"),
-            );
+              confirmLabel: t("close"),
+            });
           }
           onDraftSaved?.(savedInvoiceId);
         } else {
-          alert(t("invoiceCompletedSuccess"));
+          await showAlert({
+            title: t("invoiceCompletedSuccess"),
+            confirmLabel: t("close"),
+          });
           onInvoiceCompleted?.(savedInvoiceId);
         }
 
@@ -807,7 +832,11 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
       console.error("[InvoiceCreator] Error saving invoice:", error);
       setSaveStatus("dirty");
       if (!options.silent) {
-        alert(error instanceof Error ? error.message : t("errorSavingInvoice"));
+        await showAlert({
+          title:
+            error instanceof Error ? error.message : t("errorSavingInvoice"),
+          confirmLabel: t("close"),
+        });
       }
     } finally {
       setSaving(false);
@@ -848,7 +877,10 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
       );
     } catch (error) {
       console.error("[InvoiceCreator] Error downloading PDF:", error);
-      alert(t("errorDownloadingPdf"));
+      await showAlert({
+        title: t("errorDownloadingPdf"),
+        confirmLabel: t("close"),
+      });
     } finally {
       setDownloadingPdf(false);
     }
@@ -904,7 +936,10 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
     } catch (error) {
       console.error("[InvoiceCreator] Error printing invoice:", error);
       printWindow.close();
-      alert(t("errorSavingInvoice"));
+      await showAlert({
+        title: t("errorSavingInvoice"),
+        confirmLabel: t("close"),
+      });
     }
   };
 
@@ -1327,9 +1362,9 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
                   <div className="mb-4 space-y-3">
                     <div className="grid grid-cols-12 gap-3 rounded bg-gray-100 p-3 text-sm font-semibold text-gray-700">
                       <div className="col-span-5">{t("description")}</div>
-                      <div className="col-span-2">{t("quantityShort")}</div>
-                      <div className="col-span-2">{t("unitPrice")}</div>
-                      <div className="col-span-2">{t("amount")}</div>
+                      <div className="col-span-2 whitespace-nowrap">{t("quantityShort")}</div>
+                      <div className="col-span-2 whitespace-nowrap">{t("unitPrice")}</div>
+                      <div className="col-span-2 whitespace-nowrap">{t("amount")}</div>
                       <div className="col-span-1" />
                     </div>
 
@@ -1356,7 +1391,7 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
                               <option value="">{t("selectProduct")}</option>
                               {products.map((product) => (
                                 <option key={product.id} value={product.id}>
-                                  {product.name} ({product.quantity_in_stock})
+                                  {product.name} - {t("availableQuantity")}: {product.quantity_in_stock}
                                 </option>
                               ))}
                             </select>

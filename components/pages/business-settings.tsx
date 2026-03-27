@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { useAppDialog } from "@/hooks/use-app-dialog";
 import { PhoneInput } from "@/components/ui/phone-input";
 import { Upload } from "lucide-react";
 import { db } from "@/lib/db";
@@ -33,6 +34,7 @@ interface PendingLogoUpload {
 
 const BusinessSettingsPage: React.FC = () => {
   const { language, setLanguage, t } = useLanguage();
+  const { showAlert } = useAppDialog();
   const [settings, setSettings] = useState<BusinessSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -227,10 +229,10 @@ const BusinessSettingsPage: React.FC = () => {
           : prev,
       );
 
-      alert(t("changes"));
+      await showAlert({ title: t("changes"), confirmLabel: t("close") });
     } catch (error) {
       console.error("Error saving settings:", error);
-      alert(t("error"));
+      await showAlert({ title: t("error"), confirmLabel: t("close") });
     } finally {
       setSaving(false);
     }

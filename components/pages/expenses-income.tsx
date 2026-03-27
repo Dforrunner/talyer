@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useAppDialog } from '@/hooks/use-app-dialog';
 import { Plus, Trash2, Edit2, Repeat } from 'lucide-react';
 import { db } from '@/lib/db';
 import { useLanguage } from '@/hooks/use-language';
@@ -75,6 +76,7 @@ const createEmptyFormData = (): ExpenseIncomeFormState => ({
 
 const ExpensesIncomePage: React.FC = () => {
   const { formatCurrency, formatDate, t } = useLanguage();
+  const { showAlert, showConfirm } = useAppDialog();
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [incomeEntries, setIncomeEntries] = useState<IncomeEntry[]>([]);
   const [recurringExpenses, setRecurringExpenses] = useState<RecurringExpense[]>(
@@ -87,6 +89,8 @@ const ExpensesIncomePage: React.FC = () => {
     null,
   );
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterCategory, setFilterCategory] = useState('all');
   const [formData, setFormData] = useState<ExpenseIncomeFormState>(
     createEmptyFormData(),
   );
@@ -94,6 +98,11 @@ const ExpensesIncomePage: React.FC = () => {
   useEffect(() => {
     void loadData();
   }, []);
+
+  useEffect(() => {
+    setFilterCategory('all');
+    setSearchTerm('');
+  }, [activeTab]);
 
   const getFrequencyLabel = (frequency: RecurringFrequency) => {
     switch (frequency) {
@@ -193,18 +202,18 @@ const ExpensesIncomePage: React.FC = () => {
 
   const handleSubmit = async () => {
     if (!formData.category.trim() || !formData.amount) {
-      alert(t('fillRequiredFields'));
+      await showAlert({ title: t('fillRequiredFields'), confirmLabel: t('close') });
       return;
     }
 
     if (activeTab === 'income' && !formData.description.trim()) {
-      alert(t('fillRequiredFields'));
+      await showAlert({ title: t('fillRequiredFields'), confirmLabel: t('close') });
       return;
     }
 
     const amount = Number(formData.amount);
     if (!Number.isFinite(amount) || amount <= 0) {
-      alert(t('enterValidAmount'));
+      await showAlert({ title: t('enterValidAmount'), confirmLabel: t('close') });
       return;
     }
 
@@ -332,7 +341,7 @@ const ExpensesIncomePage: React.FC = () => {
       await loadData();
     } catch (error) {
       console.error('[ExpensesIncome] Error saving:', error);
-      alert(t('errorSavingData'));
+      await showAlert({ title: t('errorSavingData'), confirmLabel: t('close') });
     }
   };
 
@@ -372,7 +381,14 @@ const ExpensesIncomePage: React.FC = () => {
   };
 
   const handleDelete = async (id: number) => {
-    if (!window.confirm(t('deleteEntryConfirm'))) return;
+    const confirmed = await showConfirm({
+      title: t('deleteEntryConfirm'),
+      confirmLabel: t('delete'),
+      cancelLabel: t('cancel'),
+      variant: 'destructive',
+    });
+
+    if (!confirmed) return;
 
     try {
       const table = activeTab === 'expenses' ? 'expenses' : 'income';
@@ -380,19 +396,26 @@ const ExpensesIncomePage: React.FC = () => {
       await loadData();
     } catch (error) {
       console.error('[ExpensesIncome] Error deleting:', error);
-      alert(t('errorDeletingEntry'));
+      await showAlert({ title: t('errorDeletingEntry'), confirmLabel: t('close') });
     }
   };
 
   const handleDeleteRecurring = async (id: number) => {
-    if (!window.confirm(t('deleteRecurringExpenseConfirm'))) return;
+    const confirmed = await showConfirm({
+      title: t('deleteRecurringExpenseConfirm'),
+      confirmLabel: t('delete'),
+      cancelLabel: t('cancel'),
+      variant: 'destructive',
+    });
+
+    if (!confirmed) return;
 
     try {
       await db.run('DELETE FROM recurring_expenses WHERE id = ?', [id]);
       await loadData();
     } catch (error) {
       console.error('[ExpensesIncome] Error deleting recurring expense:', error);
-      alert(t('errorDeletingEntry'));
+      await showAlert({ title: t('errorDeletingEntry'), confirmLabel: t('close') });
     }
   };
 
@@ -421,8 +444,33 @@ const ExpensesIncomePage: React.FC = () => {
 
   const displayItems = activeTab === 'expenses' ? expenses : incomeEntries;
   const categories = activeTab === 'expenses' ? expenseCategories : incomeCategories;
+  const tableCategories = [
+    'all',
+    ...new Set(displayItems.map((item) => item.category).filter(Boolean)),
+  ];
+  const filteredDisplayItems = displayItems.filter((item) => {
+    const query = searchTerm.trim().toLowerCase();
+    const dateValue =
+      activeTab === 'expenses'
+        ? (item as Expense).expense_date
+        : (item as IncomeEntry).income_date;
 
-  const totalAmount = displayItems.reduce((sum, item) => sum + item.amount, 0);
+    const matchesSearch =
+      !query ||
+      item.category.toLowerCase().includes(query) ||
+      (item.description || '').toLowerCase().includes(query) ||
+      (item.payment_method || '').toLowerCase().includes(query) ||
+      dateValue.toLowerCase().includes(query);
+    const matchesCategory =
+      filterCategory === 'all' || item.category === filterCategory;
+
+    return matchesSearch && matchesCategory;
+  });
+
+  const totalAmount = filteredDisplayItems.reduce(
+    (sum, item) => sum + item.amount,
+    0,
+  );
 
   return (
     <div className="p-8 space-y-6">
@@ -711,45 +759,69 @@ const ExpensesIncomePage: React.FC = () => {
           </div>
         </div>
 
+        <div className="grid grid-cols-1 gap-4 border-b border-border p-6 md:grid-cols-3">
+          <Input
+            placeholder={t('searchEntries')}
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+          />
+          <select
+            value={filterCategory}
+            onChange={(event) => setFilterCategory(event.target.value)}
+            className="rounded-md border border-input bg-background px-3 py-2 text-foreground"
+          >
+            {tableCategories.map((category) => (
+              <option key={category} value={category}>
+                {category === 'all' ? t('allCategories') : category}
+              </option>
+            ))}
+          </select>
+          <div className="flex items-center text-sm text-muted-foreground">
+            {t('showing')} {filteredDisplayItems.length} {t('of')} {displayItems.length}
+          </div>
+        </div>
+
         {loading ? (
           <div className="p-8 text-center text-muted-foreground">
             {t('loading')}
           </div>
-        ) : displayItems.length === 0 ? (
+        ) : filteredDisplayItems.length === 0 ? (
           <div className="p-8 text-center text-muted-foreground">
-            {activeTab === 'expenses'
-              ? t('noExpensesRecorded')
-              : t('noIncomeRecorded')}
+            {searchTerm || filterCategory !== 'all'
+              ? t('noMatchingEntries')
+              : activeTab === 'expenses'
+                ? t('noExpensesRecorded')
+                : t('noIncomeRecorded')}
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full">
+            <table className="w-full min-w-[860px]">
               <thead className="bg-muted/50 border-b border-border">
                 <tr>
-                  <th className="px-6 py-3 text-left text-sm font-semibold">
+                  <th className="w-px px-6 py-3 text-left text-sm font-semibold whitespace-nowrap">
                     {t('category')}
                   </th>
                   <th className="px-6 py-3 text-left text-sm font-semibold">
                     {t('description')}
                   </th>
-                  <th className="px-6 py-3 text-left text-sm font-semibold">
+                  <th className="w-px px-6 py-3 text-left text-sm font-semibold whitespace-nowrap">
                     {t('date')}
                   </th>
-                  <th className="px-6 py-3 text-right text-sm font-semibold">
+                  <th className="w-px px-6 py-3 text-right text-sm font-semibold whitespace-nowrap">
                     {t('amount')}
                   </th>
-                  <th className="px-6 py-3 text-right text-sm font-semibold">
+                  <th className="w-px px-6 py-3 text-right text-sm font-semibold whitespace-nowrap">
                     {t('actions')}
                   </th>
                 </tr>
               </thead>
               <tbody>
-                {displayItems.map((item) => (
+                {filteredDisplayItems.map((item) => (
                   <tr
                     key={item.id}
                     className="border-b border-border hover:bg-muted/30"
                   >
-                    <td className="px-6 py-4 text-sm font-medium">
+                    <td className="px-6 py-4 text-sm font-medium whitespace-nowrap">
                       {item.category}
                     </td>
                     <td className="px-6 py-4 text-sm">
@@ -760,17 +832,17 @@ const ExpensesIncomePage: React.FC = () => {
                         </div>
                       )}
                     </td>
-                    <td className="px-6 py-4 text-sm text-muted-foreground">
+                    <td className="px-6 py-4 text-sm text-muted-foreground whitespace-nowrap">
                       {formatDate(
                         activeTab === 'expenses'
                           ? (item as Expense).expense_date
                           : (item as IncomeEntry).income_date,
                       )}
                     </td>
-                    <td className="px-6 py-4 text-sm text-right font-semibold">
+                    <td className="px-6 py-4 text-sm text-right font-semibold whitespace-nowrap">
                       {formatCurrency(item.amount)}
                     </td>
-                    <td className="px-6 py-4 text-right">
+                    <td className="px-6 py-4 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-2">
                         <Button
                           variant="ghost"

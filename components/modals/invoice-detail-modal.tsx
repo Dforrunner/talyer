@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Printer, X } from 'lucide-react';
+import { AppBrand } from '@/components/ui/app-brand';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { db } from '@/lib/db';
@@ -139,6 +140,7 @@ const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
         <Card className="max-h-[90vh] w-full max-w-5xl overflow-y-auto">
           <div className="sticky top-0 flex items-center justify-between border-b border-border bg-background p-6">
             <div>
+              <AppBrand compact subtitle={t('invoiceHistory')} className="mb-3" />
               <h2 className="text-xl font-bold">{invoiceData.invoice_number}</h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 {invoiceData.customer_name}
@@ -242,19 +244,19 @@ const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
             <div>
               <h3 className="mb-3 font-semibold">{t('items')}</h3>
               <div className="overflow-hidden rounded-lg border border-border">
-                <table className="w-full">
+                <table className="w-full min-w-[560px]">
                   <thead className="border-b border-border bg-muted/50">
                     <tr>
                       <th className="px-4 py-2 text-left text-sm font-semibold">
                         {t('description')}
                       </th>
-                      <th className="px-4 py-2 text-right text-sm font-semibold">
+                      <th className="w-px px-4 py-2 text-right text-sm font-semibold whitespace-nowrap">
                         {t('quantityShort')}
                       </th>
-                      <th className="px-4 py-2 text-right text-sm font-semibold">
+                      <th className="w-px px-4 py-2 text-right text-sm font-semibold whitespace-nowrap">
                         {t('unitPrice')}
                       </th>
-                      <th className="px-4 py-2 text-right text-sm font-semibold">
+                      <th className="w-px px-4 py-2 text-right text-sm font-semibold whitespace-nowrap">
                         {t('amount')}
                       </th>
                     </tr>
@@ -278,13 +280,13 @@ const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
                           <td className="px-4 py-2 text-sm">
                             {item.description || item.product_name}
                           </td>
-                          <td className="px-4 py-2 text-right text-sm">
+                          <td className="px-4 py-2 text-right text-sm whitespace-nowrap">
                             {item.quantity}
                           </td>
-                          <td className="px-4 py-2 text-right text-sm">
+                          <td className="px-4 py-2 text-right text-sm whitespace-nowrap">
                             {formatMoney(item.unit_price)}
                           </td>
-                          <td className="px-4 py-2 text-right text-sm font-medium">
+                          <td className="px-4 py-2 text-right text-sm font-medium whitespace-nowrap">
                             {formatMoney(item.amount)}
                           </td>
                         </tr>

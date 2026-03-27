@@ -284,18 +284,18 @@ const RevenueTrackingPage: React.FC = () => {
           <h2 className="text-lg font-semibold">{t('monthlyBreakdown')}</h2>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full min-w-[1180px]">
             <thead className="bg-muted/50 border-b border-border">
               <tr>
-                <th className="px-6 py-3 text-left text-sm font-semibold">{t('date')}</th>
-                <th className="px-6 py-3 text-right text-sm font-semibold">{t('totalRevenue')}</th>
-                <th className="px-6 py-3 text-right text-sm font-semibold">{t('additionalIncome')}</th>
-                <th className="px-6 py-3 text-right text-sm font-semibold">{t('revenue')}</th>
-                <th className="px-6 py-3 text-right text-sm font-semibold">{t('totalCosts')}</th>
-                <th className="px-6 py-3 text-right text-sm font-semibold">{t('otherExpenses')}</th>
-                <th className="px-6 py-3 text-right text-sm font-semibold">{t('costs')}</th>
-                <th className="px-6 py-3 text-right text-sm font-semibold">{t('profit')}</th>
-                <th className="px-6 py-3 text-right text-sm font-semibold">{t('margin')}</th>
+                <th className="w-px px-6 py-3 text-left text-sm font-semibold whitespace-nowrap">{t('date')}</th>
+                <th className="w-px px-6 py-3 text-right text-sm font-semibold whitespace-nowrap">{t('totalRevenue')}</th>
+                <th className="w-px px-6 py-3 text-right text-sm font-semibold whitespace-nowrap">{t('additionalIncome')}</th>
+                <th className="w-px px-6 py-3 text-right text-sm font-semibold whitespace-nowrap">{t('revenue')}</th>
+                <th className="w-px px-6 py-3 text-right text-sm font-semibold whitespace-nowrap">{t('totalCosts')}</th>
+                <th className="w-px px-6 py-3 text-right text-sm font-semibold whitespace-nowrap">{t('otherExpenses')}</th>
+                <th className="w-px px-6 py-3 text-right text-sm font-semibold whitespace-nowrap">{t('costs')}</th>
+                <th className="w-px px-6 py-3 text-right text-sm font-semibold whitespace-nowrap">{t('profit')}</th>
+                <th className="w-px px-6 py-3 text-right text-sm font-semibold whitespace-nowrap">{t('margin')}</th>
               </tr>
             </thead>
             <tbody>
@@ -303,21 +303,21 @@ const RevenueTrackingPage: React.FC = () => {
                 const margin = month.revenue > 0 ? ((month.profit / month.revenue) * 100).toFixed(1) : '0';
                 return (
                   <tr key={index} className="border-b border-border hover:bg-muted/30">
-                    <td className="px-6 py-4 text-sm font-medium">{month.month}</td>
-                    <td className="px-6 py-4 text-sm text-right">{formatCurrency(month.salesRevenue)}</td>
-                    <td className="px-6 py-4 text-sm text-right">{formatCurrency(month.additionalIncome)}</td>
-                    <td className="px-6 py-4 text-sm text-right">{formatCurrency(month.revenue)}</td>
-                    <td className="px-6 py-4 text-sm text-right">{formatCurrency(month.productCosts)}</td>
-                    <td className="px-6 py-4 text-sm text-right">{formatCurrency(month.additionalExpenses)}</td>
-                    <td className="px-6 py-4 text-sm text-right">{formatCurrency(month.costs)}</td>
+                    <td className="px-6 py-4 text-sm font-medium whitespace-nowrap">{month.month}</td>
+                    <td className="px-6 py-4 text-sm text-right whitespace-nowrap">{formatCurrency(month.salesRevenue)}</td>
+                    <td className="px-6 py-4 text-sm text-right whitespace-nowrap">{formatCurrency(month.additionalIncome)}</td>
+                    <td className="px-6 py-4 text-sm text-right whitespace-nowrap">{formatCurrency(month.revenue)}</td>
+                    <td className="px-6 py-4 text-sm text-right whitespace-nowrap">{formatCurrency(month.productCosts)}</td>
+                    <td className="px-6 py-4 text-sm text-right whitespace-nowrap">{formatCurrency(month.additionalExpenses)}</td>
+                    <td className="px-6 py-4 text-sm text-right whitespace-nowrap">{formatCurrency(month.costs)}</td>
                     <td
-                      className={`px-6 py-4 text-sm text-right font-semibold ${
+                      className={`px-6 py-4 text-sm text-right font-semibold whitespace-nowrap ${
                         month.profit >= 0 ? 'text-green-600' : 'text-red-600'
                       }`}
                     >
                       {formatCurrency(month.profit)}
                     </td>
-                    <td className="px-6 py-4 text-sm text-right">{margin}%</td>
+                    <td className="px-6 py-4 text-sm text-right whitespace-nowrap">{margin}%</td>
                   </tr>
                 );
               })}

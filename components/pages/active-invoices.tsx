@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useAppDialog } from '@/hooks/use-app-dialog';
 import { PenSquare, CarFront, Trash2 } from 'lucide-react';
 import { db } from '@/lib/db';
 import { useLanguage } from '@/hooks/use-language';
@@ -34,6 +35,7 @@ const ActiveInvoicesPage: React.FC<ActiveInvoicesPageProps> = ({
   onEditInvoice,
 }) => {
   const { formatCurrency, formatDate, t } = useLanguage();
+  const { showAlert, showConfirm } = useAppDialog();
   const [invoices, setInvoices] = useState<ActiveInvoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -118,7 +120,14 @@ const ActiveInvoicesPage: React.FC<ActiveInvoicesPageProps> = ({
   };
 
   const handleDeleteInvoice = async (invoiceId: number) => {
-    if (!window.confirm(t('deleteDraftConfirm'))) {
+    const confirmed = await showConfirm({
+      title: t('deleteDraftConfirm'),
+      confirmLabel: t('delete'),
+      cancelLabel: t('cancel'),
+      variant: 'destructive',
+    });
+
+    if (!confirmed) {
       return;
     }
 
@@ -150,7 +159,10 @@ const ActiveInvoicesPage: React.FC<ActiveInvoicesPageProps> = ({
       await loadInvoices();
     } catch (error) {
       console.error('[ActiveInvoices] Error deleting invoice:', error);
-      alert(t('errorDeletingInvoice'));
+      await showAlert({
+        title: t('errorDeletingInvoice'),
+        confirmLabel: t('close'),
+      });
     }
   };
 

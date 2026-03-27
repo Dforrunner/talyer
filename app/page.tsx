@@ -11,6 +11,7 @@ import InvoiceHistoryPage from '@/components/pages/invoice-history';
 import RevenueTrackingPage from '@/components/pages/revenue-tracking';
 import DataManagementPage from '@/components/pages/data-management';
 import ExpensesIncomePage from '@/components/pages/expenses-income';
+import { useAppDialog } from '@/hooks/use-app-dialog';
 import { useLanguage } from '@/hooks/use-language';
 import { isElectron } from '@/lib/electron-api';
 
@@ -27,6 +28,7 @@ type Page =
 
 export default function Home() {
   const { t } = useLanguage();
+  const { showConfirm } = useAppDialog();
   const [currentPage, setCurrentPage] = useState<Page>('dashboard');
   const [lowStockCount, setLowStockCount] = useState(0);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<number | null>(null);
@@ -41,13 +43,11 @@ export default function Home() {
       try {
         // Only attempt database query if we're in Electron
         if (!isElectron()) {
-          console.log('[App] Not running in Electron, skipping database check');
           return;
         }
 
         const api = (window as any).electronAPI;
         if (!api?.database?.query) {
-          console.log('[App] Database API not ready yet');
           return;
         }
 
@@ -66,7 +66,7 @@ export default function Home() {
     return () => clearInterval(interval);
   }, []);
 
-  const confirmInvoiceNavigation = () => {
+  const confirmInvoiceNavigation = async () => {
     if (currentPage !== 'invoices') {
       return true;
     }
@@ -75,11 +75,15 @@ export default function Home() {
       return true;
     }
 
-    return window.confirm(t('leaveInvoiceWithoutSaving'));
+    return await showConfirm({
+      title: t('leaveInvoiceWithoutSaving'),
+      confirmLabel: t('confirm'),
+      cancelLabel: t('cancel'),
+    });
   };
 
-  const changePage = (page: Page) => {
-    if (currentPage === 'invoices' && !confirmInvoiceNavigation()) {
+  const changePage = async (page: Page) => {
+    if (currentPage === 'invoices' && !(await confirmInvoiceNavigation())) {
       return;
     }
 
@@ -90,11 +94,11 @@ export default function Home() {
     setCurrentPage(page);
   };
 
-  const editInvoice = (invoiceId: number) => {
+  const editInvoice = async (invoiceId: number) => {
     if (
       currentPage === 'invoices' &&
       selectedInvoiceId !== invoiceId &&
-      !confirmInvoiceNavigation()
+      !(await confirmInvoiceNavigation())
     ) {
       return;
     }
@@ -105,7 +109,7 @@ export default function Home() {
 
   const renderPage = () => {
     const handleNavigate = (page: Page) => {
-      changePage(page);
+      void changePage(page);
     };
 
     switch (currentPage) {

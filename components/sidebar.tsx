@@ -1,6 +1,7 @@
 'use client';
 
 import { Badge } from '@/components/ui/badge';
+import { AppBrand } from '@/components/ui/app-brand';
 import LanguageToggle from '@/components/language-toggle';
 import { useLanguage } from '@/hooks/use-language';
 import {
@@ -15,7 +16,6 @@ import {
   Download,
   DollarSign,
   ClipboardList,
-  WrenchIcon,
 } from 'lucide-react';
 
 type Page =
@@ -31,7 +31,7 @@ type Page =
 
 interface SidebarProps {
   currentPage: Page;
-  onPageChange: (page: Page) => void;
+  onPageChange: (page: Page) => void | Promise<void>;
   lowStockCount: number;
 }
 
@@ -53,15 +53,11 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, onPageChange, lowStockCo
     <div className="w-64 bg-sidebar border-r border-sidebar-border h-screen flex flex-col">
       {/* Logo/Title */}
       <div className="p-6 border-b border-sidebar-border">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-sidebar-primary rounded-lg flex items-center justify-center">
-            <WrenchIcon className="w-6 h-6 text-sidebar-primary-foreground" />
-          </div>
-          <div>
-            <h1 className="font-bold text-lg text-sidebar-foreground">Mechanic</h1>
-            <p className="text-xs text-sidebar-foreground/60">{t('shopManager')}</p>
-          </div>
-        </div>
+        <AppBrand
+          titleClassName="text-lg text-sidebar-foreground"
+          subtitleClassName="text-sidebar-foreground/60"
+          subtitle={t('shopManager')}
+        />
       </div>
 
       {/* Low Stock Alert */}
@@ -86,7 +82,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, onPageChange, lowStockCo
           return (
             <button
               key={item.id}
-              onClick={() => onPageChange(item.id)}
+              onClick={() => void onPageChange(item.id)}
               className={`w-full flex items-center justify-between px-4 py-3 rounded-lg transition-colors ${
                 isActive
                   ? 'bg-sidebar-primary text-sidebar-primary-foreground'

@@ -12,6 +12,7 @@ import {
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useAppDialog } from '@/hooks/use-app-dialog';
 import { db, file } from '@/lib/db';
 import { useLanguage } from '@/hooks/use-language';
 import { generateInvoicePdfForInvoice } from '@/lib/invoice-pdf';
@@ -41,6 +42,7 @@ const InvoiceHistoryPage: React.FC<InvoiceHistoryPageProps> = ({
   onEditInvoice,
 }) => {
   const { formatCurrency, formatDate, t } = useLanguage();
+  const { showAlert, showConfirm } = useAppDialog();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [filteredInvoices, setFilteredInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -122,18 +124,32 @@ const InvoiceHistoryPage: React.FC<InvoiceHistoryPageProps> = ({
       );
 
       if (savedPath) {
-        alert(`${t('pdfCopySavedAt')} ${savedPath}`);
+        await showAlert({
+          title: t('pdfCopySavedAt'),
+          description: savedPath,
+          confirmLabel: t('close'),
+        });
       }
 
       await loadInvoices();
     } catch (error) {
       console.error('[InvoiceHistory] Error downloading PDF:', error);
-      alert(t('errorDownloadingPdf'));
+      await showAlert({
+        title: t('errorDownloadingPdf'),
+        confirmLabel: t('close'),
+      });
     }
   };
 
   const handleDeleteInvoice = async (id: number) => {
-    if (!window.confirm(t('deleteConfirm'))) {
+    const confirmed = await showConfirm({
+      title: t('deleteConfirm'),
+      confirmLabel: t('delete'),
+      cancelLabel: t('cancel'),
+      variant: 'destructive',
+    });
+
+    if (!confirmed) {
       return;
     }
 
@@ -165,7 +181,10 @@ const InvoiceHistoryPage: React.FC<InvoiceHistoryPageProps> = ({
       await loadInvoices();
     } catch (error) {
       console.error('[InvoiceHistory] Error deleting invoice:', error);
-      alert(t('errorDeletingInvoice'));
+      await showAlert({
+        title: t('errorDeletingInvoice'),
+        confirmLabel: t('close'),
+      });
     }
   };
 
@@ -181,7 +200,10 @@ const InvoiceHistoryPage: React.FC<InvoiceHistoryPageProps> = ({
       await loadInvoices();
     } catch (error) {
       console.error('[InvoiceHistory] Error updating invoice:', error);
-      alert(t('errorUpdatingInvoice'));
+      await showAlert({
+        title: t('errorUpdatingInvoice'),
+        confirmLabel: t('close'),
+      });
     }
   };
 
@@ -275,31 +297,31 @@ const InvoiceHistoryPage: React.FC<InvoiceHistoryPageProps> = ({
 
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full min-w-[1100px]">
             <thead className="border-b border-border bg-muted/50">
               <tr>
-                <th className="px-6 py-3 text-left text-sm font-semibold">
+                <th className="w-px px-6 py-3 text-left text-sm font-semibold whitespace-nowrap">
                   {t('invoiceNumber')}
                 </th>
                 <th className="px-6 py-3 text-left text-sm font-semibold">
                   {t('customer')}
                 </th>
-                <th className="px-6 py-3 text-left text-sm font-semibold">
+                <th className="w-px px-6 py-3 text-left text-sm font-semibold whitespace-nowrap">
                   {t('receivedDate')}
                 </th>
-                <th className="px-6 py-3 text-left text-sm font-semibold">
+                <th className="w-px px-6 py-3 text-left text-sm font-semibold whitespace-nowrap">
                   {t('createdDate')}
                 </th>
-                <th className="px-6 py-3 text-left text-sm font-semibold">
+                <th className="w-px px-6 py-3 text-left text-sm font-semibold whitespace-nowrap">
                   {t('paymentDate')}
                 </th>
-                <th className="px-6 py-3 text-right text-sm font-semibold">
+                <th className="w-px px-6 py-3 text-right text-sm font-semibold whitespace-nowrap">
                   {t('amount')}
                 </th>
-                <th className="px-6 py-3 text-center text-sm font-semibold">
+                <th className="w-px px-6 py-3 text-center text-sm font-semibold whitespace-nowrap">
                   {t('status')}
                 </th>
-                <th className="px-6 py-3 text-right text-sm font-semibold">
+                <th className="w-px px-6 py-3 text-right text-sm font-semibold whitespace-nowrap">
                   {t('actions')}
                 </th>
               </tr>
@@ -326,7 +348,7 @@ const InvoiceHistoryPage: React.FC<InvoiceHistoryPageProps> = ({
                       key={invoice.id}
                       className="border-b border-border transition-colors hover:bg-muted/30"
                     >
-                      <td className="px-6 py-4">
+                      <td className="px-6 py-4 whitespace-nowrap">
                         <div className="font-semibold text-sm">
                           {invoice.invoice_number}
                         </div>
@@ -344,19 +366,19 @@ const InvoiceHistoryPage: React.FC<InvoiceHistoryPageProps> = ({
                           </div>
                         )}
                       </td>
-                      <td className="px-6 py-4 text-sm text-muted-foreground">
+                      <td className="px-6 py-4 text-sm text-muted-foreground whitespace-nowrap">
                         {formatDate(invoice.invoice_date)}
                       </td>
-                      <td className="px-6 py-4 text-sm text-muted-foreground">
+                      <td className="px-6 py-4 text-sm text-muted-foreground whitespace-nowrap">
                         {formatDate(invoice.created_at)}
                       </td>
-                      <td className="px-6 py-4 text-sm text-muted-foreground">
+                      <td className="px-6 py-4 text-sm text-muted-foreground whitespace-nowrap">
                         {invoice.paid_at ? formatDate(invoice.paid_at) : '-'}
                       </td>
-                      <td className="px-6 py-4 text-right text-sm font-semibold">
+                      <td className="px-6 py-4 text-right text-sm font-semibold whitespace-nowrap">
                         {formatCurrency(invoice.total)}
                       </td>
-                      <td className="px-6 py-4 text-center">
+                      <td className="px-6 py-4 text-center whitespace-nowrap">
                         <span
                           className={`inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium ${statusBadge.className}`}
                         >
@@ -364,7 +386,7 @@ const InvoiceHistoryPage: React.FC<InvoiceHistoryPageProps> = ({
                           {statusBadge.label}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-right">
+                      <td className="px-6 py-4 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-2">
                           <Button
                             variant="ghost"

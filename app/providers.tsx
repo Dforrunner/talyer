@@ -1,5 +1,6 @@
 'use client';
 
+import { AppDialogProvider } from '@/lib/app-dialog-context';
 import { LanguageProvider } from '@/lib/language-context';
 
 export default function Providers({
@@ -7,5 +8,9 @@ export default function Providers({
 }: {
   children: React.ReactNode;
 }) {
-  return <LanguageProvider>{children}</LanguageProvider>;
+  return (
+    <LanguageProvider>
+      <AppDialogProvider>{children}</AppDialogProvider>
+    </LanguageProvider>
+  );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { X, Printer } from "lucide-react";
+import { AppBrand } from "@/components/ui/app-brand";
 import { Button } from "@/components/ui/button";
 import { useFilePreview } from "@/hooks/use-file-preview";
 import { useLanguage } from "@/hooks/use-language";
@@ -79,7 +80,10 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
       <div className="flex h-[90vh] w-full max-w-4xl flex-col rounded-lg bg-white shadow-lg">
         <div className="flex items-center justify-between border-b border-gray-200 p-4">
-          <h2 className="text-lg font-semibold">{t('invoicePreview')}</h2>
+          <div className="space-y-2">
+            <AppBrand compact subtitle={t("invoicePreview")} />
+            <h2 className="text-lg font-semibold">{t('invoicePreview')}</h2>
+          </div>
           <div className="flex items-center gap-2">
             <Button
               onClick={handlePrint}

@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { useAppDialog } from '@/hooks/use-app-dialog';
 import { Plus, Edit2, Trash2, AlertTriangle } from 'lucide-react';
 import { db } from '@/lib/db';
 import { useLanguage } from '@/hooks/use-language';
@@ -28,12 +29,14 @@ interface InventoryPageProps {
 
 const InventoryPage: React.FC<InventoryPageProps> = ({ onLowStockUpdate }) => {
   const { formatCurrency, t } = useLanguage();
+  const { showConfirm } = useAppDialog();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterCategory, setFilterCategory] = useState('all');
+  const [filterStock, setFilterStock] = useState('all');
 
   useEffect(() => {
     loadProducts();
@@ -70,29 +73,52 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onLowStockUpdate }) => {
   };
 
   const handleDeleteProduct = async (id: number) => {
-    if (window.confirm(t('deleteProductConfirm'))) {
-      try {
-        await db.run('DELETE FROM products WHERE id = ?', [id]);
-        await loadProducts();
-      } catch (error) {
-        console.error('Error deleting product:', error);
-      }
+    const confirmed = await showConfirm({
+      title: t('deleteProductConfirm'),
+      confirmLabel: t('delete'),
+      cancelLabel: t('cancel'),
+      variant: 'destructive',
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      await db.run('DELETE FROM products WHERE id = ?', [id]);
+      await loadProducts();
+    } catch (error) {
+      console.error('Error deleting product:', error);
     }
   };
+
+  const filteredProducts = products.filter((product) => {
+    const query = searchTerm.toLowerCase();
+    const matchesSearch =
+      product.name.toLowerCase().includes(query) ||
+      (product.sku || '').toLowerCase().includes(query);
+    const matchesCategory =
+      filterCategory === 'all' || product.category === filterCategory;
+    const isLowStock = product.quantity_in_stock <= product.low_stock_threshold;
+    const matchesStock =
+      filterStock === 'all' ||
+      (filterStock === 'low' ? isLowStock : !isLowStock);
+
+    return matchesSearch && matchesCategory && matchesStock;
+  });
+
+  const categories = ['all', ...new Set(products.map((p) => p.category).filter(Boolean))];
+
+  const stockOptions = [
+    { value: 'all', label: t('allStockLevels') },
+    { value: 'low', label: t('lowStockAlert') },
+    { value: 'healthy', label: t('inStockOnly') },
+  ];
 
   const handleSaveProduct = async () => {
     await loadProducts();
     setShowModal(false);
   };
-
-  const filteredProducts = products.filter(product => {
-    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         (product.sku || '').toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesCategory = filterCategory === 'all' || product.category === filterCategory;
-    return matchesSearch && matchesCategory;
-  });
-
-  const categories = ['all', ...new Set(products.map(p => p.category).filter(Boolean))];
 
   return (
     <div className="p-8 space-y-8">
@@ -110,7 +136,7 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onLowStockUpdate }) => {
 
       {/* Search and Filters */}
       <Card className="p-4">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
           <Input
             placeholder={t('searchByNameOrSku')}
             value={searchTerm}
@@ -121,9 +147,20 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onLowStockUpdate }) => {
             onChange={(e) => setFilterCategory(e.target.value)}
             className="px-3 py-2 border border-input rounded-md bg-background text-foreground"
           >
-            {categories.map(cat => (
+            {categories.map((cat) => (
               <option key={cat} value={cat}>
                 {cat === 'all' ? t('allCategories') : cat}
+              </option>
+            ))}
+          </select>
+          <select
+            value={filterStock}
+            onChange={(e) => setFilterStock(e.target.value)}
+            className="px-3 py-2 border border-input rounded-md bg-background text-foreground"
+          >
+            {stockOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
               </option>
             ))}
           </select>
@@ -136,16 +173,16 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onLowStockUpdate }) => {
       {/* Products Table */}
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full min-w-[980px]">
             <thead className="bg-muted/50 border-b border-border">
               <tr>
                 <th className="px-6 py-3 text-left text-sm font-semibold">{t('productName')}</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold">{t('sku')}</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold">{t('category')}</th>
-                <th className="px-6 py-3 text-right text-sm font-semibold">{t('costPrice')}</th>
-                <th className="px-6 py-3 text-right text-sm font-semibold">{t('sellingPrice')}</th>
-                <th className="px-6 py-3 text-right text-sm font-semibold">{t('quantityInStock')}</th>
-                <th className="px-6 py-3 text-right text-sm font-semibold">{t('actions')}</th>
+                <th className="w-px px-6 py-3 text-left text-sm font-semibold whitespace-nowrap">{t('sku')}</th>
+                <th className="w-px px-6 py-3 text-left text-sm font-semibold whitespace-nowrap">{t('category')}</th>
+                <th className="w-px px-6 py-3 text-right text-sm font-semibold whitespace-nowrap">{t('costPrice')}</th>
+                <th className="w-px px-6 py-3 text-right text-sm font-semibold whitespace-nowrap">{t('sellingPrice')}</th>
+                <th className="w-px px-6 py-3 text-right text-sm font-semibold whitespace-nowrap">{t('quantityInStock')}</th>
+                <th className="w-px px-6 py-3 text-right text-sm font-semibold whitespace-nowrap">{t('actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -180,14 +217,14 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onLowStockUpdate }) => {
                           </div>
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-sm text-muted-foreground">{product.sku || '-'}</td>
-                      <td className="px-6 py-4 text-sm">{product.category}</td>
-                      <td className="px-6 py-4 text-sm text-right">{formatCurrency(product.cost_price)}</td>
-                      <td className="px-6 py-4 text-sm text-right font-semibold">{formatCurrency(product.selling_price)}</td>
-                      <td className={`px-6 py-4 text-sm text-right font-semibold ${isLowStock ? 'text-destructive' : ''}`}>
+                      <td className="px-6 py-4 text-sm text-muted-foreground whitespace-nowrap">{product.sku || '-'}</td>
+                      <td className="px-6 py-4 text-sm whitespace-nowrap">{product.category}</td>
+                      <td className="px-6 py-4 text-sm text-right whitespace-nowrap">{formatCurrency(product.cost_price)}</td>
+                      <td className="px-6 py-4 text-sm text-right font-semibold whitespace-nowrap">{formatCurrency(product.selling_price)}</td>
+                      <td className={`px-6 py-4 text-sm text-right font-semibold whitespace-nowrap ${isLowStock ? 'text-destructive' : ''}`}>
                         {product.quantity_in_stock} {product.unit}
                       </td>
-                      <td className="px-6 py-4 text-right">
+                      <td className="px-6 py-4 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-2">
                           <Button
                             variant="ghost"
@@ -200,7 +237,7 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onLowStockUpdate }) => {
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleDeleteProduct(product.id)}
+                            onClick={() => void handleDeleteProduct(product.id)}
                             className="gap-1 text-destructive hover:text-destructive"
                           >
                             <Trash2 className="w-4 h-4" />
