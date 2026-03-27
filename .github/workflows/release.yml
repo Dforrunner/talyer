@@ -29,12 +29,16 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Build web app
+        run: pnpm exec next build --webpack
+
       - name: Build and publish mac release
         run: pnpm exec electron-builder --mac dmg zip --publish always
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-win:
+    needs: build-mac
     runs-on: windows-latest
     permissions:
       contents: write
@@ -55,6 +59,9 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Build web app
+        run: pnpm exec next build --webpack
 
       - name: Build and publish Windows release
         run: pnpm exec electron-builder --win nsis --publish always
