@@ -1062,11 +1062,14 @@ function formatCurrency(amount, currency = 'PHP', locale = 'en-PH') {
 }
 
 function createWindow() {
+  const windowIconPath = path.join(__dirname, '..', 'assets', 'app-loco.png');
+
   mainWindow = new BrowserWindow({
     width: 1400,
     height: 900,
     minWidth: 800,
     minHeight: 600,
+    icon: fs.existsSync(windowIconPath) ? windowIconPath : undefined,
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,

@@ -1,5 +1,5 @@
 {
-  "name": "mechanic-shop-invoicing",
+  "name": "mechanic-shop-manager",
   "version": "1.0.0",
   "description": "Desktop invoicing, inventory, and financial management for mechanic shops.",
   "author": "Mo",
@@ -87,6 +87,7 @@
   "build": {
     "appId": "com.mechanic-shop.invoicing",
     "productName": "Mechanic Shop Invoicing",
+    "icon": "app-loco.png",
     "directories": {
       "buildResources": "assets",
       "output": "dist"
@@ -98,6 +99,7 @@
       "node_modules/**/*"
     ],
     "win": {
+      "icon": "app-loco.ico",
       "target": [
         "nsis",
         "portable"
@@ -110,6 +112,7 @@
       "createStartMenuShortcut": true
     },
     "mac": {
+      "icon": "app-loco.icns",
       "target": [
         "dmg",
         "zip"
