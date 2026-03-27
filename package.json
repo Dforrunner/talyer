@@ -106,6 +106,7 @@
     ],
     "win": {
       "icon": "app-loco.ico",
+      "artifactName": "Mechanic-Shop-Invoicing-${version}-${arch}-${target}.${ext}",
       "target": [
         "nsis",
         "portable"
@@ -119,6 +120,7 @@
     },
     "mac": {
       "icon": "app-loco.icns",
+      "artifactName": "Mechanic-Shop-Invoicing-${version}-${arch}-mac.${ext}",
       "target": [
         "dmg",
         "zip"

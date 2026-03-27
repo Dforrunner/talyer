@@ -1,274 +1,196 @@
-# Mechanic Shop Invoicing & Inventory Management System
+# Mechanic Shop Invoicing
 
-A professional, production-ready invoicing and inventory management system built specifically for mechanic shops. This is a desktop application that runs locally on Windows and Mac, with all data stored locally using SQLite.
+Desktop invoicing, inventory, customer contact tracking, and financial management for local mechanic shops.
 
-## Features
+This app is built for a non-technical shop owner using one local computer. It runs locally with SQLite and does not require accounts, passwords, or cloud setup.
 
-### Core Features
-- **Professional Invoice Creation** - Create detailed invoices with products and custom labor entries
-- **Inventory Management** - Full CRUD operations for managing shop products and stock levels
-- **Invoice History** - Complete history of all invoices with search and filtering
-- **PDF Generation** - Automatically generate professional, print-ready invoices as PDFs
-- **Revenue Tracking** - Monthly and yearly profit/loss analysis with charts
-- **Low Stock Alerts** - Real-time notifications when inventory falls below thresholds
-- **Business Settings** - Customize business info, logo, tax rates, and more
+## What The App Does
 
-### Advanced Features
-- **Auto Invoice Numbering** - Sequential invoice numbers with date prefixes
-- **Tax/VAT Management** - Optional tax calculation on invoices
-- **Automatic Stock Updates** - Stock automatically decreases when items are used in invoices
-- **Product Categories** - Organize products by category
-- **Multiple Currency Support** - Support for USD, EUR, GBP, CAD, AUD, JPY, CHF
-- **Customer Tracking** - Store customer contact information
-- **Local Storage** - All data stored locally - no cloud required
-- **Data Persistence** - SQLite database for reliable data storage
+- Create draft invoices when a vehicle arrives
+- Keep updating active jobs over time until the repair is finished
+- Complete invoices, print them, and download PDF copies
+- Track products, prices, stock, and low-stock warnings
+- Track extra income and expenses, including recurring expenses
+- Show revenue, costs, and profit by month
+- Save customer contact details automatically from invoice history
+- Reuse customer details to prefill a new draft invoice
+- Export and import the full app data for backup or transfer
+- Switch the app and invoice language between English and Tagalog
+- Check for app updates from inside the app
 
-## Installation & Setup
+## Main Features
 
-### Prerequisites
-- Node.js 18+ and npm (or pnpm/yarn)
-- Windows or macOS operating system
+### Invoicing
+- Draft-first invoice workflow for mechanic jobs
+- Optional vehicle details: make, model, year, and plate number
+- Product and labor line items
+- Invoice preview, print, and PDF download
+- Invoice language selection
+- Autosave while editing
+- Active Invoices page for work in progress
+- Invoice History with created date, payment date, filters, and sorting
 
-### Installation Steps
+### Inventory
+- Product creation and editing
+- Optional SKU with automatic SKU generation
+- Cost price, selling price, quantity, low-stock threshold
+- Search, filters, and sortable columns
+- Stock decreases when items are used on invoices
 
-1. **Download or Clone the Project**
-   ```bash
-   git clone <repository-url>
-   cd mechanic-shop-invoicing
-   ```
+### Contacts
+- Customer Contacts page sourced from invoice history
+- Search and sort customer records
+- Start a new invoice draft using saved customer and vehicle details
 
-2. **Install Dependencies**
-   ```bash
-   pnpm install
-   # or
-   npm install
-   ```
+### Finance
+- Extra expenses and income tracking
+- Recurring expenses for rent, utilities, food, and similar costs
+- Monthly profit that includes sales, extra income, product costs, and extra expenses
+- Revenue Tracking charts and sortable monthly breakdown table
 
-3. **Start Development Mode**
-   ```bash
-   pnpm dev
-   # or
-   npm run dev
-   ```
-   This will start the Next.js dev server on port 3000 and automatically launch the Electron app.
+### Data & Setup
+- Business Settings for shop details, logo, VAT rate, and language
+- Data export/import for backup and moving to another computer
+- Local file storage for logo and invoice PDFs
+- In-app update check and install flow for installed releases
 
-4. **Build for Production**
-   ```bash
-   pnpm build
-   # or
-   npm run build
-   ```
+## Who This Is For
 
-## Usage Guide
+This app is intended for:
+- a mechanic shop owner
+- one main local device
+- no user accounts
+- no server setup
+- no technical knowledge required for daily use
 
-### Getting Started
+That design choice is intentional.
 
-1. **Configure Business Settings** (First Time Setup)
-   - Click on "Business Settings" in the sidebar
-   - Enter your business name, address, phone, email
-   - Optional: Upload your business logo (PNG/JPG, 200x200px)
-   - Set your default VAT/Tax rate
-   - Choose your currency
+## Daily Workflow
 
-2. **Add Products to Inventory**
-   - Go to "Inventory" tab
-   - Click "Add Product"
-   - Enter product details:
-     - Product Name
-     - SKU (Stock Keeping Unit)
-     - Cost Price (what you pay)
-     - Selling Price (what you charge)
-     - Quantity in Stock
-     - Low Stock Threshold (alerts when stock falls below this)
-   - Click "Add Product"
+1. Set up the shop in `Business Settings`
+2. Add products in `Inventory`
+3. Create a draft invoice when a vehicle arrives
+4. Update the draft from `Active Invoices` while the work is ongoing
+5. Complete the invoice when the vehicle is ready
+6. Print or download the invoice PDF
+7. Mark the invoice as paid from `Invoice History`
+8. Check reports in `Revenue Tracking`
+9. Export a backup from `Data Management`
 
-3. **Create Your First Invoice**
-   - Click "Create Invoice" in the sidebar
-   - Enter customer information (name, phone, email)
-   - Set invoice date (defaults to today)
-   - Set due date (defaults to 30 days from today)
-   - Add items:
-     - **Add Product**: Select from your inventory (stock auto-updates)
-     - **Add Labor**: Add custom labor work with description and cost
-   - Review the summary on the right
-   - Click "Create Invoice"
+## Installation
 
-4. **View & Manage Invoices**
-   - Go to "Invoice History"
-   - Search by invoice number or customer name
-   - Filter by status (Draft, Sent, Paid)
-   - View detailed invoice information
-   - Print or export as PDF
-   - Mark invoices as paid
+For simple user-facing install steps, read [INSTALL_GUIDE.md](./INSTALL_GUIDE.md).
 
-5. **Monitor Revenue**
-   - Go to "Revenue Tracking"
-   - View monthly revenue, costs, and profit
-   - See profit margin percentages
-   - Charts show trends over time
-   - Change year using the dropdown
+### Developer Setup
 
-6. **Check Inventory Status**
-   - Dashboard shows low stock items count
-   - Sidebar displays alert badge when items are low
-   - Inventory page highlights low stock items with warning icons
-   - Set custom thresholds per product
+Requirements:
+- Node.js 20+
+- pnpm
+- macOS or Windows
 
-### Dashboard Overview
-The dashboard provides a quick overview of:
-- Total products in inventory
-- Low stock items count
-- Total invoices created
-- Monthly revenue
-- Quick action shortcuts
+Install:
 
-## Database Schema
+```bash
+pnpm install
+```
 
-### Tables
-- **business_settings** - Business information and configuration
-- **products** - Inventory items with pricing and stock
-- **invoices** - Invoice records with customer and financial data
-- **invoice_items** - Line items within invoices
-- **low_stock_alerts** - Tracking for low stock alerts
-- **audit_log** - System activity logging
+Run in development:
 
-### Data Storage
-- Database: `~/.config/mechanic-shop-invoicing/mechanic-shop.db`
-- Invoices: `~/.config/mechanic-shop-invoicing/invoices/`
-- Logo: Stored in app data directory
-- All data is local - no internet required
+```bash
+pnpm dev
+```
 
-## Keyboard Shortcuts & Tips
+Build locally:
 
-- **Dashboard**: Quick overview of your shop
-- **Inventory**: Manage all products
-- **Create Invoice**: Make new invoices
-- **Invoice History**: Find and manage past invoices
-- **Revenue Tracking**: Analyze business performance
-- **Business Settings**: Update shop information
+```bash
+pnpm build
+```
 
-## Features in Detail
+## Updates
 
-### Invoice Creation
-- **Products**: Select from inventory with auto-populated pricing
-- **Labor**: Add custom labor work with any description and cost
-- **Tax/VAT**: Optional tax calculation based on business settings
-- **Notes**: Add customer-specific notes
-- **Auto Stock Update**: Product quantities decrease when added to invoices
+The app is configured to use GitHub Releases from:
 
-### Inventory Management
-- **Search & Filter**: Find products by name or SKU
-- **Category Organization**: Filter by product categories
-- **Cost Tracking**: Monitor profit margins (selling price - cost price)
-- **Low Stock Alerts**: Visual indicators for items below threshold
-- **Bulk Edit**: Quickly update product information
+- `https://github.com/Dforrunner/talyer`
 
-### Reporting & Analytics
-- **Monthly Revenue**: See income by month
-- **Profit Analysis**: Calculate profit margin percentages
-- **Cost Tracking**: Monitor business expenses
-- **Invoice Metrics**: Average invoice value and total count
-- **Year Selection**: View any year's data
+Inside the app, the user can:
+- open `Business Settings`
+- click `Check for Updates`
+- download an available update
+- click `Install and Restart`
 
-### PDF Generation
-- **Professional Design**: Print-ready invoices
-- **Business Branding**: Logo and business info on each invoice
-- **Automatic Naming**: PDFs named by invoice number
-- **Local Storage**: All PDFs stored locally for archive
+Important:
+- auto-update works best on installed builds
+- Windows users should install the `nsis` build, not just the portable copy
+- macOS updates work best when the app is installed in `Applications`
 
-## Troubleshooting
+## Release Process
 
-### Issue: App won't start
-**Solution**: Make sure you've installed all dependencies with `pnpm install`
+### GitHub Actions Release
 
-### Issue: Database errors
-**Solution**: The database is created automatically on first run. If you get an error, check that you have write permissions in your user data directory.
+This repo now includes a release workflow:
 
-### Issue: PDF generation fails
-**Solution**: Ensure you have sufficient disk space in your user data directory
+- [.github/workflows/release.yml](./.github/workflows/release.yml)
 
-### Issue: Low stock alerts not showing
-**Solution**: 
-- Make sure you've set low stock thresholds for your products
-- The sidebar badge updates every 30 seconds
-- Manual refresh by navigating to Inventory page
+To publish a new version:
 
-### Issue: Logo not displaying
-**Solution**:
-- Use PNG or JPG format
-- Recommended size: 200x200px
-- Re-upload the logo if it doesn't appear
+1. Update `version` in [package.json](./package.json)
+2. Commit the change
+3. Create and push a version tag
 
-## Security & Privacy
+```bash
+git tag v1.0.1
+git push origin main --tags
+```
 
-- All data stored locally on your computer
-- No internet connection required
-- No data sent to any server
-- Complete control over your business information
-- SQLite database can be backed up like any file
+GitHub Actions will build and publish release artifacts for macOS and Windows using GitHub Releases.
 
-## Backup & Recovery
+### Manual Local Release
 
-### Backup Your Data
-1. Close the application
-2. Copy the entire data directory:
-   - Windows: `%APPDATA%/mechanic-shop-invoicing/`
-   - macOS: `~/Library/Application Support/mechanic-shop-invoicing/`
-3. Store the backup in a safe location
+If you want to publish from your own machine instead of GitHub Actions:
 
-### Restore from Backup
-1. Close the application
-2. Replace the data directory with your backup
-3. Restart the application
+```bash
+export GITHUB_TOKEN=your_github_token
+pnpm run release
+```
 
-## Future Enhancements
+## Data Storage
 
-Potential features for future updates:
-- Customer database with history
-- Recurring invoice templates
-- Email invoice sending
-- Payment tracking
-- Backup to cloud storage
-- Multi-user support
-- Invoice customization templates
-- Expense tracking
-- Vehicle service records
+The app stores data locally in the Electron app data folder.
 
-## Support & Troubleshooting
+It includes:
+- SQLite database
+- business logo
+- generated invoice PDFs
+- imported/exported app data
 
-For issues or questions:
-1. Check the troubleshooting section above
-2. Ensure all dependencies are installed: `pnpm install`
-3. Try restarting the application
-4. Check that you have sufficient disk space
-5. Verify database isn't corrupted (close app and restart)
+## Tech Stack
 
-## Technical Details
+- Next.js 16
+- React 19
+- Electron 41
+- better-sqlite3
+- PDFKit
+- Tailwind CSS 4
+- Radix UI
+- Recharts
+- electron-builder
+- electron-updater
 
-### Stack
-- **Frontend**: React 19 with Next.js 16
-- **Desktop**: Electron 33
-- **Database**: SQLite3 (better-sqlite3)
-- **PDF Generation**: PDFKit
-- **UI Components**: shadcn/ui with Radix UI
-- **Charts**: Recharts
-- **Styling**: Tailwind CSS 4
+## Current Production Notes
 
-### Architecture
-- Single-user desktop application
-- Main process handles database and file operations
-- Renderer process handles UI
-- IPC communication between processes
-- Local-only data storage
+The app is functionally ready for a real local mechanic shop workflow.
 
-## License
+Remaining practical release caveats:
+- macOS notarization is still needed for the smoothest public macOS distribution
+- portable Windows builds do not support the in-app updater
+- GitHub Releases must contain the built artifacts and update metadata for updater checks to succeed
 
-Commercial license - All rights reserved
+## Verification
 
-## Version
+Recently verified locally with:
 
-Version 1.0.0 - Initial Release
-
----
-
-**Ready to manage your shop efficiently!** Start by setting up your business information and adding your first products to the inventory.
+- `pnpm exec tsc --noEmit`
+- `pnpm exec next build --webpack`
+- `pnpm exec electron-builder --mac zip`
+- `node -c public/electron.js`
+- `node -c public/preload.js`
