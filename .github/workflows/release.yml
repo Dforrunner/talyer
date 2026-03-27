@@ -8,6 +8,7 @@ on:
 
 jobs:
   build-mac:
+    needs: build-win
     runs-on: macos-latest
     permissions:
       contents: write
@@ -39,7 +40,6 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   build-win:
-    needs: build-mac
     runs-on: windows-latest
     permissions:
       contents: write
