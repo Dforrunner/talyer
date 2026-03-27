@@ -85,7 +85,7 @@ For simple user-facing install steps, read [INSTALL_GUIDE.md](./INSTALL_GUIDE.md
 ### Developer Setup
 
 Requirements:
-- Node.js 20+
+- Node.js 24.14.1 or newer
 - pnpm
 - macOS or Windows
 

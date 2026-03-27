@@ -1,17 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
+import { useState, useEffect, type ReactNode } from 'react';
 import Sidebar from '@/components/sidebar';
-import DashboardPage from '@/components/pages/dashboard';
-import InventoryPage from '@/components/pages/inventory';
-import BusinessSettingsPage from '@/components/pages/business-settings';
-import InvoiceCreatorPage from '@/components/pages/invoice-creator';
-import ActiveInvoicesPage from '@/components/pages/active-invoices';
-import InvoiceHistoryPage from '@/components/pages/invoice-history';
-import RevenueTrackingPage from '@/components/pages/revenue-tracking';
-import DataManagementPage from '@/components/pages/data-management';
-import ExpensesIncomePage from '@/components/pages/expenses-income';
-import CustomerContactsPage from '@/components/pages/customer-contacts';
 import { useAppDialog } from '@/hooks/use-app-dialog';
 import { useLanguage } from '@/hooks/use-language';
 import { type CustomerContactFields, type CustomerContactPrefill } from '@/lib/customer-contacts';
@@ -28,6 +19,63 @@ type Page =
   | 'data-management'
   | 'expenses-income'
   | 'customer-contacts';
+
+function PageLoadingShell() {
+  return (
+    <div className="p-8 space-y-8">
+      <div className="h-9 w-64 animate-pulse rounded-lg bg-muted/70" />
+      <div className="h-5 w-80 animate-pulse rounded-lg bg-muted/50" />
+      <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+        {Array.from({ length: 6 }, (_, index) => (
+          <div
+            key={index}
+            className="h-36 animate-pulse rounded-xl border bg-card/70 shadow-sm"
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const DashboardPage = dynamic(() => import('@/components/pages/dashboard'), {
+  loading: () => <PageLoadingShell />,
+});
+
+const InventoryPage = dynamic(() => import('@/components/pages/inventory'), {
+  loading: () => <PageLoadingShell />,
+});
+
+const BusinessSettingsPage = dynamic(() => import('@/components/pages/business-settings'), {
+  loading: () => <PageLoadingShell />,
+});
+
+const InvoiceCreatorPage = dynamic(() => import('@/components/pages/invoice-creator'), {
+  loading: () => <PageLoadingShell />,
+});
+
+const ActiveInvoicesPage = dynamic(() => import('@/components/pages/active-invoices'), {
+  loading: () => <PageLoadingShell />,
+});
+
+const InvoiceHistoryPage = dynamic(() => import('@/components/pages/invoice-history'), {
+  loading: () => <PageLoadingShell />,
+});
+
+const RevenueTrackingPage = dynamic(() => import('@/components/pages/revenue-tracking'), {
+  loading: () => <PageLoadingShell />,
+});
+
+const DataManagementPage = dynamic(() => import('@/components/pages/data-management'), {
+  loading: () => <PageLoadingShell />,
+});
+
+const ExpensesIncomePage = dynamic(() => import('@/components/pages/expenses-income'), {
+  loading: () => <PageLoadingShell />,
+});
+
+const CustomerContactsPage = dynamic(() => import('@/components/pages/customer-contacts'), {
+  loading: () => <PageLoadingShell />,
+});
 
 export default function Home() {
   const { t } = useLanguage();
@@ -130,7 +178,7 @@ export default function Home() {
     setCurrentPage('invoices');
   };
 
-  const renderPage = () => {
+  const renderPage = (): ReactNode => {
     const handleNavigate = (page: Page) => {
       void changePage(page);
     };

@@ -1,5 +1,6 @@
 const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
+const http = require('http');
 const Database = require('better-sqlite3');
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
@@ -12,6 +13,9 @@ const isDev = !app.isPackaged;
 let mainWindow;
 let db;
 let updateState;
+let staticServer;
+let staticServerUrl;
+const staticAssetCache = new Map();
 
 function ensureDirectory(dirPath) {
   if (!fs.existsSync(dirPath)) {
@@ -73,6 +77,12 @@ function decodeFileData(data) {
 
 function getMimeType(filepath) {
   switch (path.extname(filepath).toLowerCase()) {
+    case '.html':
+      return 'text/html; charset=utf-8';
+    case '.css':
+      return 'text/css; charset=utf-8';
+    case '.js':
+      return 'application/javascript; charset=utf-8';
     case '.png':
       return 'image/png';
     case '.jpg':
@@ -84,13 +94,110 @@ function getMimeType(filepath) {
       return 'image/webp';
     case '.svg':
       return 'image/svg+xml';
+    case '.ico':
+      return 'image/x-icon';
     case '.json':
+      return 'application/json';
+    case '.map':
       return 'application/json';
     case '.txt':
       return 'text/plain';
     default:
       return 'application/octet-stream';
   }
+}
+
+function resolveStaticFilePath(requestPath) {
+  const outDir = path.resolve(__dirname, '../out');
+  const rawPath = decodeURIComponent((requestPath || '/').split('?')[0]);
+  const relativePath = rawPath === '/' ? 'index.html' : rawPath.replace(/^\/+/, '');
+  const resolvedPath = path.resolve(outDir, relativePath);
+  const requestedExtension = path.extname(relativePath);
+
+  if (!resolvedPath.startsWith(outDir + path.sep) && resolvedPath !== outDir) {
+    return requestedExtension ? null : path.join(outDir, 'index.html');
+  }
+
+  if (fs.existsSync(resolvedPath) && fs.statSync(resolvedPath).isFile()) {
+    return resolvedPath;
+  }
+
+  if (fs.existsSync(resolvedPath) && fs.statSync(resolvedPath).isDirectory()) {
+    const nestedIndex = path.join(resolvedPath, 'index.html');
+    if (fs.existsSync(nestedIndex)) {
+      return nestedIndex;
+    }
+  }
+
+  return requestedExtension ? null : path.join(outDir, 'index.html');
+}
+
+function startStaticServer() {
+  if (staticServerUrl) {
+    return Promise.resolve(staticServerUrl);
+  }
+
+  return new Promise((resolve, reject) => {
+    staticServer = http.createServer((req, res) => {
+      const filePath = resolveStaticFilePath(req.url);
+
+      if (!filePath) {
+        res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+        res.end('File not found.');
+        return;
+      }
+
+      const cachedEntry = staticAssetCache.get(filePath);
+      if (cachedEntry) {
+        res.writeHead(200, cachedEntry.headers);
+        res.end(cachedEntry.data);
+        return;
+      }
+
+      fs.readFile(filePath, (error, data) => {
+        if (error) {
+          res.writeHead(500, { 'Content-Type': 'text/plain; charset=utf-8' });
+          res.end('Unable to load application files.');
+          return;
+        }
+
+        const headers = {
+          'Content-Type': getMimeType(filePath),
+          'Cache-Control': filePath.endsWith('.html') ? 'no-cache' : 'public, max-age=31536000, immutable',
+        };
+
+        if (!filePath.endsWith('.html')) {
+          staticAssetCache.set(filePath, { data, headers });
+        }
+
+        res.writeHead(200, headers);
+        res.end(data);
+      });
+    });
+
+    staticServer.on('error', (error) => {
+      staticServer = null;
+      staticServerUrl = null;
+      reject(error);
+    });
+
+    staticServer.listen(0, '127.0.0.1', () => {
+      const address = staticServer.address();
+      staticServerUrl = `http://127.0.0.1:${address.port}`;
+      resolve(staticServerUrl);
+    });
+  });
+}
+
+function stopStaticServer() {
+  if (!staticServer) {
+    return;
+  }
+
+  staticServer.close();
+  staticServer = null;
+  staticServerUrl = null;
+  staticAssetCache.clear();
 }
 
 function hasColumn(tableName, columnName) {
@@ -1301,7 +1408,7 @@ function formatCurrency(amount, currency = 'PHP', locale = 'en-PH') {
   }
 }
 
-function createWindow() {
+async function createWindow() {
   const windowIconPath = path.join(__dirname, '..', 'assets', 'app-loco.png');
 
   mainWindow = new BrowserWindow({
@@ -1320,9 +1427,9 @@ function createWindow() {
 
   const startUrl = isDev
     ? 'http://localhost:3000'
-    : `file://${path.join(__dirname, '../out/index.html')}`;
+    : await startStaticServer();
 
-  mainWindow.loadURL(startUrl);
+  await mainWindow.loadURL(startUrl);
 
   mainWindow.webContents.on('did-finish-load', () => {
     broadcastUpdateState(updateState || buildInitialUpdateState());
@@ -1337,85 +1444,15 @@ function createWindow() {
   });
 }
 
-// Create desktop shortcut
-function createDesktopShortcut() {
-  const os = require('os');
-  const { execSync } = require('child_process');
-  
-  const platform = process.platform;
-  const appPath = app.getPath('exe');
-  const desktopPath = path.join(os.homedir(), 'Desktop');
-  
-  try {
-    if (platform === 'win32') {
-      // Windows: Create .lnk shortcut using PowerShell
-      const shortcutPath = path.join(desktopPath, 'ShopFlow.lnk');
-      
-      const ps = `
-        $WshShell = New-Object -ComObject WScript.Shell;
-        $shortcut = $WshShell.CreateShortcut('${shortcutPath}');
-        $shortcut.TargetPath = '${appPath}';
-        $shortcut.WorkingDirectory = '${path.dirname(appPath)}';
-        $shortcut.Description = 'ShopFlow business operations app';
-        $shortcut.IconLocation = '${appPath}';
-        $shortcut.Save();
-      `;
-      
-      execSync(`powershell -Command "${ps.replace(/"/g, '\\"')}"`, { stdio: 'pipe' });
-      console.log('Desktop shortcut created successfully (Windows)');
-    } else if (platform === 'darwin') {
-      // macOS: Create alias for the app
-      const appsPath = path.join(os.homedir(), 'Applications');
-      const appName = 'ShopFlow.app';
-      const appBundle = path.dirname(appPath);
-      const shortcutPath = path.join(desktopPath, appName);
-      
-      try {
-        execSync(`ln -sf "${appBundle}" "${shortcutPath}"`);
-        console.log('Desktop shortcut created successfully (macOS)');
-      } catch (error) {
-        console.log('macOS: Desktop shortcut creation skipped, app is in Applications folder');
-      }
-    } else if (platform === 'linux') {
-      // Linux: Create .desktop file
-      const shortcutPath = path.join(desktopPath, 'ShopFlow.desktop');
-      const desktopEntry = `[Desktop Entry]
-Version=1.0
-Type=Application
-Name=ShopFlow
-Exec=${appPath}
-Comment=Business operations app for shops
-Icon=application-x-executable
-Categories=Utility;Office;
-`;
-      
-      fs.writeFileSync(shortcutPath, desktopEntry);
-      execSync(`chmod +x "${shortcutPath}"`);
-      console.log('Desktop shortcut created successfully (Linux)');
-    }
-  } catch (error) {
-    console.log('Desktop shortcut creation info: Some systems require additional permissions');
-    console.log('Users can manually create a shortcut or pin the application to taskbar');
-  }
-}
-
-app.on('ready', () => {
+app.on('ready', async () => {
   migrateLegacyUserData();
   initializeDatabase();
   initializeAutoUpdater();
-  createWindow();
-  
-  // Create desktop shortcut on first run
-  const userDataPath = app.getPath('userData');
-  const markerFile = path.join(userDataPath, '.shortcut_created');
-  
-  if (!fs.existsSync(markerFile)) {
-    createDesktopShortcut();
-    fs.writeFileSync(markerFile, 'created');
-  }
+  await createWindow();
 });
 
 app.on('window-all-closed', () => {
+  stopStaticServer();
   if (process.platform !== 'darwin') {
     app.quit();
   }
@@ -1424,8 +1461,8 @@ app.on('window-all-closed', () => {
   }
 });
 
-app.on('activate', () => {
+app.on('activate', async () => {
   if (mainWindow === null) {
-    createWindow();
+    await createWindow();
   }
 });

@@ -1,10 +1,13 @@
 {
   "name": "shopflow",
-  "version": "1.1.6",
+  "version": "1.2.0",
   "description": "ShopFlow is a local business operations app for invoices, inventory, contacts, finance, and workflow management.",
   "author": "Mo",
   "private": true,
   "packageManager": "pnpm@10.19.0",
+  "engines": {
+    "node": ">=24.14.1"
+  },
   "repository": {
     "type": "git",
     "url": "https://github.com/Dforrunner/talyer.git"
@@ -13,7 +16,7 @@
   "homepage": "./",
   "scripts": {
     "postinstall": "electron-builder install-app-deps",
-    "rebuild-native": "electron-rebuild -f -w better-sqlite3",
+    "rebuild-native": "electron-builder install-app-deps",
     "dev": "pnpm run rebuild-native && concurrently \"next dev -p 3000\" \"wait-on http://localhost:3000 && electron .\"",
     "build": "next build --webpack && electron-builder",
     "release": "next build --webpack && electron-builder --publish always",
@@ -76,7 +79,6 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@electron/rebuild": "^4.0.3",
     "@tailwindcss/postcss": "^4.2.2",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^25.5.0",
@@ -84,7 +86,7 @@
     "@types/react": "19.2.14",
     "@types/react-dom": "19.2.3",
     "concurrently": "^9.2.1",
-    "electron": "^41.0.4",
+    "electron": "^41.1.0",
     "electron-builder": "^26.8.1",
     "postcss": "^8.5.8",
     "tailwindcss": "^4.2.2",
@@ -97,6 +99,8 @@
     "productName": "ShopFlow",
     "executableName": "ShopFlow",
     "icon": "app-loco.png",
+    "asar": true,
+    "compression": "maximum",
     "npmRebuild": false,
     "directories": {
       "buildResources": "assets",
@@ -106,7 +110,10 @@
       "out/**/*",
       "public/electron.js",
       "public/preload.js",
-      "node_modules/**/*"
+      "node_modules/**/*",
+      "!node_modules/**/{test,tests,__tests__,powered-test,example,examples}/**",
+      "!node_modules/**/{README.md,readme.md,CHANGELOG.md,changelog.md,AUTHORS,LICENSE,license,*.map}",
+      "!node_modules/**/*.d.ts"
     ],
     "win": {
       "icon": "app-loco.ico",
