@@ -29,6 +29,9 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Prepare Electron app dependencies
+        run: pnpm exec electron-builder install-app-deps
+
       - name: Build web app
         run: pnpm exec next build --webpack
 
@@ -59,6 +62,9 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Prepare Electron app dependencies
+        run: pnpm exec electron-builder install-app-deps
 
       - name: Build web app
         run: pnpm exec next build --webpack
