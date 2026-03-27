@@ -15,6 +15,7 @@ import {
   Download,
   DollarSign,
   ClipboardList,
+  WrenchIcon,
 } from 'lucide-react';
 
 type Page =
@@ -54,7 +55,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, onPageChange, lowStockCo
       <div className="p-6 border-b border-sidebar-border">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-sidebar-primary rounded-lg flex items-center justify-center">
-            <FileText className="w-6 h-6 text-sidebar-primary-foreground" />
+            <WrenchIcon className="w-6 h-6 text-sidebar-primary-foreground" />
           </div>
           <div>
             <h1 className="font-bold text-lg text-sidebar-foreground">Mechanic</h1>

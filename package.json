@@ -1,13 +1,16 @@
 {
   "name": "mechanic-shop-invoicing",
   "version": "1.0.0",
+  "description": "Desktop invoicing, inventory, and financial management for mechanic shops.",
+  "author": "Mo",
   "private": true,
   "main": "public/electron.js",
   "homepage": "./",
   "scripts": {
+    "postinstall": "electron-builder install-app-deps",
     "rebuild-native": "electron-rebuild -f -w better-sqlite3",
     "dev": "pnpm run rebuild-native && concurrently \"next dev -p 3000\" \"wait-on http://localhost:3000 && electron .\"",
-    "build": "next build && electron-builder",
+    "build": "next build --webpack && electron-builder",
     "start": "electron .",
     "lint": "eslint ."
   },
@@ -98,9 +101,7 @@
       "target": [
         "nsis",
         "portable"
-      ],
-      "certificateFile": null,
-      "certificatePassword": null
+      ]
     },
     "nsis": {
       "oneClick": false,
