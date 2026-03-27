@@ -11,8 +11,10 @@ import InvoiceHistoryPage from '@/components/pages/invoice-history';
 import RevenueTrackingPage from '@/components/pages/revenue-tracking';
 import DataManagementPage from '@/components/pages/data-management';
 import ExpensesIncomePage from '@/components/pages/expenses-income';
+import CustomerContactsPage from '@/components/pages/customer-contacts';
 import { useAppDialog } from '@/hooks/use-app-dialog';
 import { useLanguage } from '@/hooks/use-language';
+import { type CustomerContactFields, type CustomerContactPrefill } from '@/lib/customer-contacts';
 import { isElectron } from '@/lib/electron-api';
 
 type Page =
@@ -24,7 +26,8 @@ type Page =
   | 'invoice-history'
   | 'revenue-tracking'
   | 'data-management'
-  | 'expenses-income';
+  | 'expenses-income'
+  | 'customer-contacts';
 
 export default function Home() {
   const { t } = useLanguage();
@@ -32,6 +35,7 @@ export default function Home() {
   const [currentPage, setCurrentPage] = useState<Page>('dashboard');
   const [lowStockCount, setLowStockCount] = useState(0);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<number | null>(null);
+  const [customerPrefill, setCustomerPrefill] = useState<CustomerContactPrefill | null>(null);
   const [invoiceEditorState, setInvoiceEditorState] = useState({
     hasUnsavedChanges: false,
     isSaving: false,
@@ -82,13 +86,31 @@ export default function Home() {
     });
   };
 
-  const changePage = async (page: Page) => {
+  const openNewInvoice = async (prefill?: CustomerContactFields) => {
     if (currentPage === 'invoices' && !(await confirmInvoiceNavigation())) {
       return;
     }
 
+    setSelectedInvoiceId(null);
+    setCustomerPrefill(
+      prefill
+        ? {
+            ...prefill,
+            requestId: Date.now(),
+          }
+        : null,
+    );
+    setCurrentPage('invoices');
+  };
+
+  const changePage = async (page: Page) => {
     if (page === 'invoices') {
-      setSelectedInvoiceId(null);
+      await openNewInvoice();
+      return;
+    }
+
+    if (currentPage === 'invoices' && !(await confirmInvoiceNavigation())) {
+      return;
     }
 
     setCurrentPage(page);
@@ -104,6 +126,7 @@ export default function Home() {
     }
 
     setSelectedInvoiceId(invoiceId);
+    setCustomerPrefill(null);
     setCurrentPage('invoices');
   };
 
@@ -123,10 +146,12 @@ export default function Home() {
         return (
           <InvoiceCreatorPage
             invoiceId={selectedInvoiceId}
+            customerPrefill={customerPrefill}
             onDraftSaved={(invoiceId) => setSelectedInvoiceId(invoiceId)}
             onInvoiceCompleted={() => {
               setInvoiceEditorState({ hasUnsavedChanges: false, isSaving: false });
               setSelectedInvoiceId(null);
+              setCustomerPrefill(null);
               setCurrentPage('invoice-history');
             }}
             onEditorStateChange={setInvoiceEditorState}
@@ -134,6 +159,8 @@ export default function Home() {
         );
       case 'active-invoices':
         return <ActiveInvoicesPage onEditInvoice={editInvoice} />;
+      case 'customer-contacts':
+        return <CustomerContactsPage onUseContact={openNewInvoice} />;
       case 'invoice-history':
         return <InvoiceHistoryPage onEditInvoice={editInvoice} />;
       case 'revenue-tracking':

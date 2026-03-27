@@ -16,6 +16,7 @@ import {
   Download,
   DollarSign,
   ClipboardList,
+  BookUser,
 } from 'lucide-react';
 
 type Page =
@@ -27,7 +28,8 @@ type Page =
   | 'invoice-history'
   | 'revenue-tracking'
   | 'data-management'
-  | 'expenses-income';
+  | 'expenses-income'
+  | 'customer-contacts';
 
 interface SidebarProps {
   currentPage: Page;
@@ -38,11 +40,12 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ currentPage, onPageChange, lowStockCount }) => {
   const { t } = useLanguage();
   const menuItems = [
+    { id: 'dashboard' as Page, label: t('dashboard'), icon: LayoutDashboard },
     { id: 'invoices' as Page, label: t('createInvoice'), icon: PlusCircle, highlight: true },
     { id: 'active-invoices' as Page, label: t('activeInvoices'), icon: ClipboardList },
-    { id: 'dashboard' as Page, label: t('dashboard'), icon: LayoutDashboard },
-    { id: 'inventory' as Page, label: t('inventory'), icon: Package, badge: lowStockCount > 0 ? lowStockCount : null },
     { id: 'invoice-history' as Page, label: t('invoiceHistory'), icon: History },
+    { id: 'customer-contacts' as Page, label: t('customerContacts'), icon: BookUser },
+    { id: 'inventory' as Page, label: t('inventory'), icon: Package, badge: lowStockCount > 0 ? lowStockCount : null },
     { id: 'expenses-income' as Page, label: t('expensesIncome'), icon: DollarSign },
     { id: 'revenue-tracking' as Page, label: t('revenueTracking'), icon: TrendingUp },
     { id: 'data-management' as Page, label: t('dataManagement'), icon: Download },

@@ -38,11 +38,7 @@ interface AppDialogContextValue {
 
 const AppDialogContext = createContext<AppDialogContextValue | null>(null);
 
-export function AppDialogProvider({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export function AppDialogProvider({ children }: { children: React.ReactNode }) {
   const { t } = useLanguage();
   const [dialogState, setDialogState] = useState<DialogState>(null);
 
@@ -97,9 +93,7 @@ export function AppDialogProvider({
         {dialogState && (
           <AlertDialogContent className="max-w-md">
             <AlertDialogHeader className="text-left">
-              <AppBrand
-              
-              />
+              <AppBrand />
               <div className="space-y-2">
                 <AlertDialogTitle>{dialogState.title}</AlertDialogTitle>
                 {dialogState.description ? (

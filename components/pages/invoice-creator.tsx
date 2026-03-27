@@ -18,6 +18,7 @@ import { getLocalDateInputValue } from "@/lib/date-utils";
 import { buildInvoicePrintHtml } from "@/lib/invoice-print-html";
 import { generateInvoicePdfForInvoice } from "@/lib/invoice-pdf";
 import { normalizePhilippinePhone } from "@/lib/phone-utils";
+import { type CustomerContactPrefill } from "@/lib/customer-contacts";
 import InvoicePreview from "@/components/invoice-preview";
 
 interface Product {
@@ -65,6 +66,7 @@ interface InvoiceForm {
 
 interface InvoiceCreatorPageProps {
   invoiceId?: number | null;
+  customerPrefill?: CustomerContactPrefill | null;
   onDraftSaved?: (invoiceId: number) => void;
   onInvoiceCompleted?: (invoiceId: number) => void;
   onEditorStateChange?: (state: {
@@ -156,8 +158,29 @@ const createEmptyInvoice = (
   };
 };
 
+const applyCustomerPrefill = (
+  invoice: InvoiceForm,
+  customerPrefill: CustomerContactPrefill | null | undefined,
+) => {
+  if (!customerPrefill) {
+    return invoice;
+  }
+
+  return {
+    ...invoice,
+    customer_name: customerPrefill.customer_name,
+    customer_phone: normalizePhilippinePhone(customerPrefill.customer_phone),
+    customer_email: customerPrefill.customer_email,
+    vehicle_make: customerPrefill.vehicle_make,
+    vehicle_model: customerPrefill.vehicle_model,
+    vehicle_year: customerPrefill.vehicle_year,
+    license_plate: customerPrefill.license_plate,
+  };
+};
+
 const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
   invoiceId = null,
+  customerPrefill = null,
   onDraftSaved,
   onInvoiceCompleted,
   onEditorStateChange,
@@ -182,8 +205,8 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
   const autosaveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    void loadData(invoiceId);
-  }, [invoiceId]);
+    void loadData(invoiceId, customerPrefill);
+  }, [customerPrefill, invoiceId]);
 
   useEffect(() => {
     if (
@@ -267,7 +290,10 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
     };
   }, [hasUnsavedChanges, invoice, loading, saving]);
 
-  const loadData = async (targetInvoiceId: number | null) => {
+  const loadData = async (
+    targetInvoiceId: number | null,
+    draftPrefill: CustomerContactPrefill | null,
+  ) => {
     try {
       setLoading(true);
 
@@ -360,15 +386,19 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
         language,
         Number(settings?.vat_rate) > 0 ? Number(settings.vat_rate) : 0,
       );
-      lastSavedSnapshotRef.current = buildInvoiceSnapshot(emptyInvoice);
+      const prefilledInvoice = applyCustomerPrefill(emptyInvoice, draftPrefill);
+      lastSavedSnapshotRef.current = buildInvoiceSnapshot(prefilledInvoice);
       setHasUnsavedChanges(false);
       setSaveStatus("saved");
-      setInvoice(emptyInvoice);
+      setInvoice(prefilledInvoice);
     } catch (error) {
       console.error("[InvoiceCreator] Error loading data:", error);
       setProducts([]);
       setBusinessSettings(null);
-      const emptyInvoice = createEmptyInvoice(language);
+      const emptyInvoice = applyCustomerPrefill(
+        createEmptyInvoice(language),
+        draftPrefill,
+      );
       lastSavedSnapshotRef.current = buildInvoiceSnapshot(emptyInvoice);
       setHasUnsavedChanges(false);
       setSaveStatus("saved");
