@@ -390,6 +390,14 @@ declare global {
       };
       app: {
         getPath: (name: string) => Promise<string>;
+        getVersion: () => Promise<string>;
+      };
+      updates: {
+        getState: () => Promise<any>;
+        check: () => Promise<any>;
+        download: () => Promise<any>;
+        install: () => Promise<any>;
+        onStatusChange: (callback: (payload: any) => void) => () => void;
       };
     };
   }

@@ -4,6 +4,10 @@
   "description": "Desktop invoicing, inventory, and financial management for mechanic shops.",
   "author": "Mo",
   "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Dforrunner/talyer.git"
+  },
   "main": "public/electron.js",
   "homepage": "./",
   "scripts": {
@@ -11,6 +15,7 @@
     "rebuild-native": "electron-rebuild -f -w better-sqlite3",
     "dev": "pnpm run rebuild-native && concurrently \"next dev -p 3000\" \"wait-on http://localhost:3000 && electron .\"",
     "build": "next build --webpack && electron-builder",
+    "release": "next build --webpack && electron-builder --publish always",
     "start": "electron .",
     "lint": "eslint ."
   },
@@ -50,6 +55,7 @@
     "clsx": "^2.1.1",
     "cmdk": "1.1.1",
     "date-fns": "4.1.0",
+    "electron-updater": "^6.8.3",
     "embla-carousel-react": "8.6.0",
     "input-otp": "1.4.2",
     "lucide-react": "^1.7.0",
@@ -133,6 +139,14 @@
           "path": "/Applications"
         }
       ]
-    }
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Dforrunner",
+        "repo": "talyer",
+        "releaseType": "release"
+      }
+    ]
   }
 }

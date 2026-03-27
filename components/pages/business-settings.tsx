@@ -8,7 +8,15 @@ import { useAppDialog } from "@/hooks/use-app-dialog";
 import { PhoneInput } from "@/components/ui/phone-input";
 import { Upload } from "lucide-react";
 import { db } from "@/lib/db";
-import { safeFileSave, getElectronAPI } from "@/lib/electron-api";
+import {
+  safeAppGetVersion,
+  safeFileSave,
+  safeUpdatesCheck,
+  safeUpdatesDownload,
+  safeUpdatesGetState,
+  safeUpdatesInstall,
+  getElectronAPI,
+} from "@/lib/electron-api";
 import { useLanguage, type Language } from "@/hooks/use-language";
 import { normalizePhilippinePhone } from "@/lib/phone-utils";
 
@@ -32,6 +40,25 @@ interface PendingLogoUpload {
   fileName: string;
 }
 
+interface UpdateState {
+  status:
+    | "idle"
+    | "unsupported"
+    | "checking"
+    | "available"
+    | "not-available"
+    | "downloading"
+    | "downloaded"
+    | "error";
+  currentVersion: string | null;
+  latestVersion: string | null;
+  progress?: {
+    percent?: number;
+  } | null;
+  releaseNotes?: string;
+  message?: string;
+}
+
 const BusinessSettingsPage: React.FC = () => {
   const { language, setLanguage, t } = useLanguage();
   const { showAlert } = useAppDialog();
@@ -41,6 +68,8 @@ const BusinessSettingsPage: React.FC = () => {
   const [logoPreview, setLogoPreview] = useState<string>("");
   const [pendingLogoUpload, setPendingLogoUpload] =
     useState<PendingLogoUpload | null>(null);
+  const [appVersion, setAppVersion] = useState<string>("");
+  const [updateState, setUpdateState] = useState<UpdateState | null>(null);
 
   useEffect(() => {
     setSettings((prev) => (prev ? { ...prev, language } : prev));
@@ -48,6 +77,37 @@ const BusinessSettingsPage: React.FC = () => {
 
   useEffect(() => {
     loadSettings();
+  }, []);
+
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+
+    const loadUpdater = async () => {
+      try {
+        const [version, initialState] = await Promise.all([
+          safeAppGetVersion(),
+          safeUpdatesGetState(),
+        ]);
+
+        setAppVersion(version || "");
+        setUpdateState(initialState);
+
+        const api = getElectronAPI();
+        if (api?.updates?.onStatusChange) {
+          unsubscribe = api.updates.onStatusChange((nextState: UpdateState) => {
+            setUpdateState(nextState);
+          });
+        }
+      } catch (error) {
+        console.error("[BusinessSettings] Error loading updater state:", error);
+      }
+    };
+
+    void loadUpdater();
+
+    return () => {
+      unsubscribe?.();
+    };
   }, []);
 
   const loadSettings = async () => {
@@ -235,6 +295,69 @@ const BusinessSettingsPage: React.FC = () => {
       await showAlert({ title: t("error"), confirmLabel: t("close") });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const getUpdateStatusText = () => {
+    switch (updateState?.status) {
+      case "unsupported":
+        if (updateState.message === "disabled_in_development") {
+          return t("updateUnsupportedDevelopment");
+        }
+        if (updateState.message === "portable_build_not_supported") {
+          return t("updateUnsupportedPortable");
+        }
+        return t("updateUnsupportedPlatform");
+      case "checking":
+        return t("checkingForUpdates");
+      case "available":
+        return t("updateAvailableMessage");
+      case "not-available":
+        return t("appIsUpToDate");
+      case "downloading":
+        return t("downloadingUpdate");
+      case "downloaded":
+        return t("updateReadyToInstall");
+      case "error":
+        return updateState.message
+          ? `${t("updateErrorGeneric")} ${updateState.message}`
+          : t("updateErrorGeneric");
+      case "idle":
+      default:
+        return t("updateStatusIdle");
+    }
+  };
+
+  const handleCheckForUpdates = async () => {
+    try {
+      const nextState = await safeUpdatesCheck();
+      if (nextState) {
+        setUpdateState(nextState);
+      }
+    } catch (error) {
+      console.error("[BusinessSettings] Error checking updates:", error);
+      await showAlert({ title: t("updateErrorGeneric"), confirmLabel: t("close") });
+    }
+  };
+
+  const handleDownloadUpdate = async () => {
+    try {
+      const nextState = await safeUpdatesDownload();
+      if (nextState) {
+        setUpdateState(nextState);
+      }
+    } catch (error) {
+      console.error("[BusinessSettings] Error downloading update:", error);
+      await showAlert({ title: t("updateErrorGeneric"), confirmLabel: t("close") });
+    }
+  };
+
+  const handleInstallUpdate = async () => {
+    try {
+      await safeUpdatesInstall();
+    } catch (error) {
+      console.error("[BusinessSettings] Error installing update:", error);
+      await showAlert({ title: t("updateErrorGeneric"), confirmLabel: t("close") });
     }
   };
 
@@ -463,6 +586,72 @@ const BusinessSettingsPage: React.FC = () => {
               <option value="tl">{t("tagalog")}</option>
             </select>
           </div>
+        </div>
+      </Card>
+
+      <Card className="p-6">
+        <h2 className="text-lg font-semibold mb-2">{t("appUpdates")}</h2>
+        <p className="text-sm text-muted-foreground mb-5">
+          {t("appUpdatesDesc")}
+        </p>
+
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="rounded-lg border border-border bg-muted/20 p-4">
+            <p className="text-sm text-muted-foreground">{t("currentVersion")}</p>
+            <p className="mt-1 text-lg font-semibold">
+              {appVersion || updateState?.currentVersion || "-"}
+            </p>
+          </div>
+          <div className="rounded-lg border border-border bg-muted/20 p-4">
+            <p className="text-sm text-muted-foreground">{t("availableVersion")}</p>
+            <p className="mt-1 text-lg font-semibold">
+              {updateState?.latestVersion || "-"}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 rounded-lg border border-border p-4">
+          <p className="text-sm font-medium text-foreground">{getUpdateStatusText()}</p>
+          {updateState?.status === "downloading" && (
+            <p className="mt-2 text-sm text-muted-foreground">
+              {t("updateProgress")}: {Math.round(updateState.progress?.percent || 0)}%
+            </p>
+          )}
+          {updateState?.releaseNotes && (
+            <div className="mt-4">
+              <p className="text-sm font-medium text-foreground">
+                {t("updateReleaseNotes")}
+              </p>
+              <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">
+                {updateState.releaseNotes}
+              </p>
+            </div>
+          )}
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-3">
+          <Button
+            variant="outline"
+            onClick={() => void handleCheckForUpdates()}
+            disabled={updateState?.status === "checking"}
+          >
+            {updateState?.status === "checking"
+              ? t("checkingForUpdates")
+              : t("checkForUpdates")}
+          </Button>
+          {updateState?.status === "available" && (
+            <Button onClick={() => void handleDownloadUpdate()}>
+              {t("downloadUpdate")}
+            </Button>
+          )}
+          {updateState?.status === "downloading" && (
+            <Button disabled>{t("downloadingUpdate")}</Button>
+          )}
+          {updateState?.status === "downloaded" && (
+            <Button onClick={() => void handleInstallUpdate()}>
+              {t("installUpdateNow")}
+            </Button>
+          )}
         </div>
       </Card>
 

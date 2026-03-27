@@ -191,3 +191,73 @@ export const safeDataImport = async (jsonData: string, shouldClear: boolean = fa
     throw error;
   }
 };
+
+export const safeAppGetVersion = async () => {
+  try {
+    const api = getElectronAPI();
+    if (!api?.app?.getVersion) {
+      console.warn('[App] getVersion API not available');
+      return null;
+    }
+    return await api.app.getVersion();
+  } catch (error) {
+    console.error('[App] getVersion error:', error);
+    throw error;
+  }
+};
+
+export const safeUpdatesGetState = async () => {
+  try {
+    const api = getElectronAPI();
+    if (!api?.updates?.getState) {
+      console.warn('[Updates] State API not available');
+      return null;
+    }
+    return await api.updates.getState();
+  } catch (error) {
+    console.error('[Updates] getState error:', error);
+    throw error;
+  }
+};
+
+export const safeUpdatesCheck = async () => {
+  try {
+    const api = getElectronAPI();
+    if (!api?.updates?.check) {
+      console.warn('[Updates] Check API not available');
+      return null;
+    }
+    return await api.updates.check();
+  } catch (error) {
+    console.error('[Updates] check error:', error);
+    throw error;
+  }
+};
+
+export const safeUpdatesDownload = async () => {
+  try {
+    const api = getElectronAPI();
+    if (!api?.updates?.download) {
+      console.warn('[Updates] Download API not available');
+      return null;
+    }
+    return await api.updates.download();
+  } catch (error) {
+    console.error('[Updates] download error:', error);
+    throw error;
+  }
+};
+
+export const safeUpdatesInstall = async () => {
+  try {
+    const api = getElectronAPI();
+    if (!api?.updates?.install) {
+      console.warn('[Updates] Install API not available');
+      return null;
+    }
+    return await api.updates.install();
+  } catch (error) {
+    console.error('[Updates] install error:', error);
+    throw error;
+  }
+};

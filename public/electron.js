@@ -3,11 +3,13 @@ const path = require('path');
 const Database = require('better-sqlite3');
 const PDFDocument = require('pdfkit');
 const fs = require('fs');
+const { autoUpdater } = require('electron-updater');
 
 const isDev = !app.isPackaged;
 
 let mainWindow;
 let db;
+let updateState;
 
 function ensureDirectory(dirPath) {
   if (!fs.existsSync(dirPath)) {
@@ -98,6 +100,136 @@ function ensureColumnExists(tableName, columnName, definition) {
   if (!hasColumn(tableName, columnName)) {
     db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`);
   }
+}
+
+function isPortableBuild() {
+  return process.platform === 'win32' && Boolean(process.env.PORTABLE_EXECUTABLE_DIR);
+}
+
+function isUpdateSupported() {
+  return !isDev && !isPortableBuild() && ['win32', 'darwin'].includes(process.platform);
+}
+
+function normalizeReleaseNotes(releaseNotes) {
+  if (typeof releaseNotes === 'string') {
+    return releaseNotes;
+  }
+
+  if (Array.isArray(releaseNotes)) {
+    return releaseNotes
+      .map((entry) => `${entry.version || ''}\n${entry.note || ''}`.trim())
+      .filter(Boolean)
+      .join('\n\n');
+  }
+
+  return '';
+}
+
+function buildInitialUpdateState() {
+  const supported = isUpdateSupported();
+
+  return {
+    status: supported ? 'idle' : 'unsupported',
+    currentVersion: app.getVersion(),
+    latestVersion: null,
+    progress: null,
+    releaseNotes: '',
+    message: supported
+      ? ''
+      : isDev
+        ? 'disabled_in_development'
+        : isPortableBuild()
+          ? 'portable_build_not_supported'
+          : 'platform_not_supported',
+  };
+}
+
+function broadcastUpdateState(nextPartial = {}) {
+  updateState = {
+    ...(updateState || buildInitialUpdateState()),
+    ...nextPartial,
+    currentVersion: app.getVersion(),
+  };
+
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('updates:status', updateState);
+  }
+
+  return updateState;
+}
+
+function initializeAutoUpdater() {
+  updateState = buildInitialUpdateState();
+
+  if (!isUpdateSupported()) {
+    return;
+  }
+
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.disableWebInstaller = true;
+
+  autoUpdater.on('checking-for-update', () => {
+    broadcastUpdateState({
+      status: 'checking',
+      progress: null,
+      message: '',
+    });
+  });
+
+  autoUpdater.on('update-available', (info) => {
+    broadcastUpdateState({
+      status: 'available',
+      latestVersion: info?.version || null,
+      releaseNotes: normalizeReleaseNotes(info?.releaseNotes),
+      progress: null,
+      message: '',
+    });
+  });
+
+  autoUpdater.on('update-not-available', (info) => {
+    broadcastUpdateState({
+      status: 'not-available',
+      latestVersion: info?.version || app.getVersion(),
+      releaseNotes: normalizeReleaseNotes(info?.releaseNotes),
+      progress: null,
+      message: '',
+    });
+  });
+
+  autoUpdater.on('download-progress', (progressObj) => {
+    broadcastUpdateState({
+      status: 'downloading',
+      progress: {
+        percent: Number(progressObj?.percent || 0),
+        bytesPerSecond: Number(progressObj?.bytesPerSecond || 0),
+        transferred: Number(progressObj?.transferred || 0),
+        total: Number(progressObj?.total || 0),
+      },
+      message: '',
+    });
+  });
+
+  autoUpdater.on('update-downloaded', (info) => {
+    broadcastUpdateState({
+      status: 'downloaded',
+      latestVersion: info?.version || updateState?.latestVersion || null,
+      releaseNotes: normalizeReleaseNotes(info?.releaseNotes),
+      progress: {
+        percent: 100,
+      },
+      message: '',
+    });
+  });
+
+  autoUpdater.on('error', (error) => {
+    console.error('Auto update error:', error);
+    broadcastUpdateState({
+      status: 'error',
+      message: error?.message || 'update_error',
+      progress: null,
+    });
+  });
 }
 
 // Initialize database
@@ -449,6 +581,72 @@ ipcMain.handle('file:read', async (event, filepath) => {
 
 ipcMain.handle('app:getPath', async (event, name) => {
   return app.getPath(name);
+});
+
+ipcMain.handle('app:getVersion', async () => {
+  return app.getVersion();
+});
+
+ipcMain.handle('updates:get-state', async () => {
+  return updateState || buildInitialUpdateState();
+});
+
+ipcMain.handle('updates:check', async () => {
+  if (!isUpdateSupported()) {
+    return broadcastUpdateState(buildInitialUpdateState());
+  }
+
+  try {
+    await autoUpdater.checkForUpdates();
+    return updateState;
+  } catch (error) {
+    console.error('Check for updates error:', error);
+    return broadcastUpdateState({
+      status: 'error',
+      message: error?.message || 'update_check_failed',
+      progress: null,
+    });
+  }
+});
+
+ipcMain.handle('updates:download', async () => {
+  if (!isUpdateSupported()) {
+    return broadcastUpdateState(buildInitialUpdateState());
+  }
+
+  if (!updateState || !['available', 'downloading'].includes(updateState.status)) {
+    return updateState || buildInitialUpdateState();
+  }
+
+  try {
+    await autoUpdater.downloadUpdate();
+    return updateState;
+  } catch (error) {
+    console.error('Download update error:', error);
+    return broadcastUpdateState({
+      status: 'error',
+      message: error?.message || 'update_download_failed',
+      progress: null,
+    });
+  }
+});
+
+ipcMain.handle('updates:install', async () => {
+  if (!isUpdateSupported()) {
+    return broadcastUpdateState(buildInitialUpdateState());
+  }
+
+  if (!updateState || updateState.status !== 'downloaded') {
+    return updateState || buildInitialUpdateState();
+  }
+
+  setImmediate(() => {
+    autoUpdater.quitAndInstall(false, true);
+  });
+
+  return {
+    success: true,
+  };
 });
 
 ipcMain.handle('pdf:generate', async (event, invoiceData, businessData) => {
@@ -1084,6 +1282,10 @@ function createWindow() {
 
   mainWindow.loadURL(startUrl);
 
+  mainWindow.webContents.on('did-finish-load', () => {
+    broadcastUpdateState(updateState || buildInitialUpdateState());
+  });
+
   if (isDev) {
     mainWindow.webContents.openDevTools();
   }
@@ -1157,6 +1359,7 @@ Categories=Utility;Office;
 
 app.on('ready', () => {
   initializeDatabase();
+  initializeAutoUpdater();
   createWindow();
   
   // Create desktop shortcut on first run
