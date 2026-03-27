@@ -1,17 +1,17 @@
-'use client';
+"use client";
 
-import { useEffect, useRef } from 'react';
-import { X, Printer } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { useFilePreview } from '@/hooks/use-file-preview';
-import { useLanguage } from '@/hooks/use-language';
+import { X, Printer } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { useFilePreview } from "@/hooks/use-file-preview";
+import { useLanguage } from "@/hooks/use-language";
+import { buildInvoicePrintHtml } from "@/lib/invoice-print-html";
 import {
   buildVehicleInfoLines,
   formatInvoiceCurrency,
   formatInvoiceDate,
   getInvoiceTranslator,
   resolveInvoiceLanguage,
-} from '@/lib/invoice-utils';
+} from "@/lib/invoice-utils";
 
 interface InvoiceItem {
   id?: string | number;
@@ -25,25 +25,21 @@ interface InvoiceItem {
 interface InvoicePreviewProps {
   invoice: any;
   businessSettings: any;
-  autoPrint?: boolean;
   onClose: () => void;
 }
 
 const InvoicePreview: React.FC<InvoicePreviewProps> = ({
   invoice,
   businessSettings,
-  autoPrint = false,
   onClose,
 }) => {
   const { t } = useLanguage();
-  const printRef = useRef<HTMLDivElement>(null);
-  const hasAutoPrintedRef = useRef(false);
   const logoSrc = useFilePreview(businessSettings?.logo_path);
   const invoiceLanguage = resolveInvoiceLanguage(invoice?.invoice_language);
   const invoiceT = getInvoiceTranslator(invoiceLanguage);
   const vehicleInfoLines = buildVehicleInfoLines(invoice, invoiceLanguage);
   const hasVehicleInfo = vehicleInfoLines.length > 0;
-  const currency = businessSettings?.currency || 'PHP';
+  const currency = businessSettings?.currency || "PHP";
 
   const formatMoney = (amount: number | null | undefined) =>
     formatInvoiceCurrency(amount, currency, invoiceLanguage);
@@ -54,16 +50,20 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
   ) => formatInvoiceDate(value, invoiceLanguage, options);
 
   const handlePrint = () => {
-    if (!printRef.current) {
-      return;
-    }
-
-    const printWindow = window.open('', '', 'height=600,width=900');
+    const printWindow = window.open("", "", "height=600,width=900");
     if (!printWindow) {
       return;
     }
 
-    printWindow.document.write(printRef.current.innerHTML);
+    printWindow.document.write(
+      buildInvoicePrintHtml({
+        invoice,
+        businessSettings,
+        logoSrc,
+        fallbackBusinessName: t("shopManager"),
+        logoAlt: t("logo"),
+      }),
+    );
     printWindow.document.close();
 
     setTimeout(() => {
@@ -72,23 +72,8 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
   };
 
   const dueDateLabel = invoice?.due_upon_receipt
-    ? invoiceT('paymentDueUponReceipt')
+    ? invoiceT("paymentDueUponReceipt")
     : formatDocDate(invoice?.due_date || invoice?.invoice_date);
-
-  useEffect(() => {
-    if (!autoPrint || hasAutoPrintedRef.current) {
-      return;
-    }
-
-    hasAutoPrintedRef.current = true;
-    const timeoutId = window.setTimeout(() => {
-      handlePrint();
-    }, 150);
-
-    return () => {
-      window.clearTimeout(timeoutId);
-    };
-  }, [autoPrint]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
@@ -113,7 +98,6 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
 
         <div className="flex flex-1 justify-center overflow-auto bg-gray-100 p-4">
           <div
-            ref={printRef}
             className="bg-white p-8"
             style={{
               width: '8.5in',
@@ -146,7 +130,7 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
                       alt={t('logo')}
                       style={{
                         maxWidth: '120px',
-                        maxHeight: '80px',
+                      maxHeight: '80px',
                         marginBottom: '10px',
                       }}
                     />

@@ -14,6 +14,7 @@ import {
   useLanguage,
 } from "@/hooks/use-language";
 import { getLocalDateInputValue } from "@/lib/date-utils";
+import { buildInvoicePrintHtml } from "@/lib/invoice-print-html";
 import { generateInvoicePdfForInvoice } from "@/lib/invoice-pdf";
 import { normalizePhilippinePhone } from "@/lib/phone-utils";
 import InvoicePreview from "@/components/invoice-preview";
@@ -170,7 +171,6 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
   const [saving, setSaving] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
-  const [previewAutoPrint, setPreviewAutoPrint] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [saveStatus, setSaveStatus] = useState<"saved" | "dirty" | "saving">(
     "saved",
@@ -855,14 +855,57 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
   };
 
   const handlePrintInvoice = async () => {
-    const savedInvoiceId = await ensureDraftSavedForOutput();
-
-    if (!savedInvoiceId && !hasMeaningfulInvoiceContent(invoice)) {
+    const printWindow = window.open("", "", "height=600,width=900");
+    if (!printWindow) {
       return;
     }
 
-    setPreviewAutoPrint(true);
-    setShowPreview(true);
+    printWindow.document.write(
+      `<!DOCTYPE html><html><head><meta charset="utf-8" /><title>${t(
+        "printInvoice",
+      )}</title></head><body style="font-family: Arial, sans-serif; padding: 24px;">${t(
+        "loading",
+      )}...</body></html>`,
+    );
+    printWindow.document.close();
+
+    try {
+      const savedInvoiceId = await ensureDraftSavedForOutput();
+
+      if (!savedInvoiceId && !hasMeaningfulInvoiceContent(invoice)) {
+        printWindow.close();
+        return;
+      }
+
+      const printableInvoice = {
+        ...invoice,
+        invoice_number: invoice.invoice_number || t("draft"),
+        due_date: invoice.due_upon_receipt
+          ? invoice.invoice_date
+          : invoice.due_date,
+      };
+
+      printWindow.document.open();
+      printWindow.document.write(
+        buildInvoicePrintHtml({
+          invoice: printableInvoice,
+          businessSettings,
+          logoSrc,
+          fallbackBusinessName: t("shopManager"),
+          logoAlt: t("logo"),
+        }),
+      );
+      printWindow.document.close();
+
+      window.setTimeout(() => {
+        printWindow.focus();
+        printWindow.print();
+      }, 250);
+    } catch (error) {
+      console.error("[InvoiceCreator] Error printing invoice:", error);
+      printWindow.close();
+      alert(t("errorSavingInvoice"));
+    }
   };
 
   const previewInvoice = {
@@ -931,10 +974,7 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
             </Button>
             <Button
               variant="outline"
-              onClick={() => {
-                setPreviewAutoPrint(false);
-                setShowPreview(true);
-              }}
+              onClick={() => setShowPreview(true)}
               disabled={saving || downloadingPdf}
               className="gap-2"
             >
@@ -1436,10 +1476,8 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
         <InvoicePreview
           invoice={previewInvoice}
           businessSettings={businessSettings}
-          autoPrint={previewAutoPrint}
           onClose={() => {
             setShowPreview(false);
-            setPreviewAutoPrint(false);
           }}
         />
       )}
