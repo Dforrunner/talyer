@@ -30,7 +30,7 @@ const DataManagementPage: React.FC = () => {
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `mechanic-shop-backup-${getLocalDateInputValue()}.json`;
+      link.download = `shopflow-backup-${getLocalDateInputValue()}.json`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);

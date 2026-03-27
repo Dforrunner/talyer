@@ -10,6 +10,7 @@
     "skipLibCheck": true,
     "strict": true,
     "noEmit": true,
+    "tsBuildInfoFile": ".next/cache/tsconfig.tsbuildinfo",
     "esModuleInterop": true,
     "module": "esnext",
     "moduleResolution": "bundler",

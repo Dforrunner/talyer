@@ -1,6 +1,6 @@
 # Install Guide
 
-This app is made for shop owners who want a simple desktop program that works even without the internet.
+ShopFlow is made for shop owners who want a simple desktop program that works even without the internet.
 
 ## For Shop Owners
 
@@ -8,10 +8,10 @@ This app is made for shop owners who want a simple desktop program that works ev
 1. Open the latest release page:
    `https://github.com/Dforrunner/talyer/releases/latest`
 2. Download the installer file:
-   `Mechanic-Shop-Invoicing-<version>-x64-nsis.exe`
+   `ShopFlow-<version>-x64-nsis.exe`
 3. Double-click the installer.
 4. Click through the install steps.
-5. Open `Mechanic Shop Invoicing` from the desktop or Start Menu.
+5. Open `ShopFlow` from the desktop or Start Menu.
 
 Recommended:
 - Use the installer version, not the portable version, if you want in-app updates to work.
@@ -20,10 +20,10 @@ Recommended:
 1. Open the latest release page:
    `https://github.com/Dforrunner/talyer/releases/latest`
 2. Download one of these files:
-   - `Mechanic-Shop-Invoicing-<version>-arm64-mac.dmg` for Apple Silicon Macs
-   - `Mechanic-Shop-Invoicing-<version>-x64-mac.dmg` for Intel Macs
+   - `ShopFlow-<version>-arm64-mac.dmg` for Apple Silicon Macs
+   - `ShopFlow-<version>-x64-mac.dmg` for Intel Macs
 3. Open the `.dmg` file.
-4. Drag `Mechanic Shop Invoicing` into `Applications`.
+4. Drag `ShopFlow` into `Applications`.
 5. Open the app from `Applications`.
 
 Note:
@@ -56,7 +56,7 @@ Note:
 2. Commit the changes.
 3. Create a tag:
    ```bash
-   git tag v1.0.1
+   git tag vX.Y.Z
    git push origin main --tags
    ```
 4. GitHub Actions will build the app and publish the release files.
@@ -68,4 +68,3 @@ If you want to publish directly from your own machine, set a GitHub token first:
 export GITHUB_TOKEN=your_github_token
 pnpm run release
 ```
-

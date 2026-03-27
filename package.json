@@ -1,7 +1,7 @@
 {
-  "name": "mechanic-shop-manager",
-  "version": "1.0.2",
-  "description": "Desktop invoicing, inventory, and financial management for mechanic shops.",
+  "name": "shopflow",
+  "version": "1.1.0",
+  "description": "ShopFlow is a local business operations app for invoices, inventory, contacts, finance, and workflow management.",
   "author": "Mo",
   "private": true,
   "repository": {
@@ -17,7 +17,8 @@
     "build": "next build --webpack && electron-builder",
     "release": "next build --webpack && electron-builder --publish always",
     "start": "electron .",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "typecheck": "next typegen && tsc --noEmit"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -91,8 +92,9 @@
     "wait-on": "^9.0.4"
   },
   "build": {
-    "appId": "com.mechanic-shop.invoicing",
-    "productName": "Mechanic Shop Invoicing",
+    "appId": "com.dforrunner.shopflow",
+    "productName": "ShopFlow",
+    "executableName": "ShopFlow",
     "icon": "app-loco.png",
     "directories": {
       "buildResources": "assets",
@@ -106,7 +108,7 @@
     ],
     "win": {
       "icon": "app-loco.ico",
-      "artifactName": "Mechanic-Shop-Invoicing-${version}-${arch}-${target}.${ext}",
+      "artifactName": "ShopFlow-${version}-${arch}-${target}.${ext}",
       "target": [
         "nsis",
         "portable"
@@ -120,7 +122,7 @@
     },
     "mac": {
       "icon": "app-loco.icns",
-      "artifactName": "Mechanic-Shop-Invoicing-${version}-${arch}-mac.${ext}",
+      "artifactName": "ShopFlow-${version}-${arch}-mac.${ext}",
       "target": [
         "dmg",
         "zip"

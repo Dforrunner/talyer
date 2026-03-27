@@ -1,8 +1,9 @@
-# Mechanic Shop Invoicing
+# ShopFlow
 
-Desktop invoicing, inventory, customer contact tracking, and financial management for local mechanic shops.
+Business operations desktop app for invoices, inventory, customer contacts, expenses, reporting, and workflow management.
 
-This app is built for a non-technical shop owner using one local computer. It runs locally with SQLite and does not require accounts, passwords, or cloud setup.
+ShopFlow is built for a non-technical owner using one local computer. It runs locally with SQLite and does not require accounts, passwords, or cloud setup.
+It works especially well for mechanic and service shops, while keeping the brand broad enough to grow beyond invoicing.
 
 ## What The App Does
 
@@ -21,7 +22,7 @@ This app is built for a non-technical shop owner using one local computer. It ru
 ## Main Features
 
 ### Invoicing
-- Draft-first invoice workflow for mechanic jobs
+- Draft-first invoice workflow for active service jobs
 - Optional vehicle details: make, model, year, and plate number
 - Product and labor line items
 - Invoice preview, print, and PDF download
@@ -57,7 +58,7 @@ This app is built for a non-technical shop owner using one local computer. It ru
 ## Who This Is For
 
 This app is intended for:
-- a mechanic shop owner
+- a service shop owner, especially mechanic shops
 - one main local device
 - no user accounts
 - no server setup
@@ -138,7 +139,7 @@ To publish a new version:
 3. Create and push a version tag
 
 ```bash
-git tag v1.0.1
+git tag vX.Y.Z
 git push origin main --tags
 ```
 
@@ -178,7 +179,7 @@ It includes:
 
 ## Current Production Notes
 
-The app is functionally ready for a real local mechanic shop workflow.
+The app is functionally ready for a real local service-shop workflow, especially for mechanic businesses.
 
 Remaining practical release caveats:
 - macOS notarization is still needed for the smoothest public macOS distribution

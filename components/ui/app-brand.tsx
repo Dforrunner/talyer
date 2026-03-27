@@ -10,7 +10,7 @@ function AppLogo({ className }: AppLogoProps) {
   return (
     <img
       src="/app-loco.png"
-      alt="Mechanic Shop"
+      alt="ShopFlow"
       className={cn(
         "size-10 rounded-xl border border-border/60 bg-white object-contain p-1 shadow-sm",
         className,
@@ -33,14 +33,14 @@ function AppBrand({
   titleClassName,
   subtitleClassName,
   compact = false,
-  subtitle = "Shop Manager",
+  subtitle = "Business Operations",
 }: AppBrandProps) {
   return (
     <div className={cn("flex items-center gap-3", className)}>
       <AppLogo className={compact ? "size-9" : "size-10"} />
       <div className="min-w-0">
         <div className={cn("truncate font-bold text-foreground", titleClassName)}>
-          Mechanic Shop
+          ShopFlow
         </div>
         <div
           className={cn(

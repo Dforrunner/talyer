@@ -13,9 +13,10 @@ export const translations = {
     dataManagement: "Data Management",
     lowStockAlert: "Low Stock Alert",
     checkInventorySoon: "Check inventory soon",
-    shopManager: "Shop Manager",
+    shopManager: "ShopFlow",
+    appTagline: "Business Operations",
     itemsLow: "Items Low",
-    versionLabel: "Mechanic Shop v1.0",
+    versionLabel: "ShopFlow v1.0",
 
     // Dashboard
     totalProducts: "Total Products",
@@ -25,7 +26,7 @@ export const translations = {
     lowStockItems: "Low Stock Items",
     recentInvoices: "Recent Invoices",
     viewAll: "View All",
-    welcomeMessage: "Welcome to your shop management system",
+    welcomeMessage: "Welcome to ShopFlow",
     quickActions: "Quick Actions",
     quickStartGuide: "Quick Start Guide",
     quickStartGuideDesc:
@@ -248,7 +249,7 @@ export const translations = {
     openDataManagementPage: "Open the Data Management page",
     clickExportAllData: 'Click the "Export All Data" button',
     saveJsonFile: "Save the JSON file to a safe location or USB drive",
-    installApplication: "Install the Mechanic Shop application",
+    installApplication: "Install the ShopFlow application",
     launchApplication: "Open the application",
     clickImportDataFromFile: 'Click "Import Data from File"',
     selectBackupFile:
@@ -463,9 +464,10 @@ export const translations = {
     dataManagement: "Ayos ng Data",
     lowStockAlert: "Mababang Stock",
     checkInventorySoon: "Check agad ang inventory",
-    shopManager: "Manager ng Shop",
+    shopManager: "ShopFlow",
+    appTagline: "Operasyon ng Negosyo",
     itemsLow: "Konti na Stock",
-    versionLabel: "Mechanic Shop v1.0",
+    versionLabel: "ShopFlow v1.0",
 
     // Dashboard
     totalProducts: "Total na Produkto",
@@ -475,7 +477,7 @@ export const translations = {
     lowStockItems: "Mga Low Stock",
     recentInvoices: "Recent na Invoice",
     viewAll: "Tingnan Lahat",
-    welcomeMessage: "Welcome sa shop management system mo",
+    welcomeMessage: "Welcome sa ShopFlow",
     quickActions: "Mabilis na Gawain",
     quickStartGuide: "Mabilis na Gabay",
     quickStartGuideDesc:
@@ -699,7 +701,7 @@ export const translations = {
     openDataManagementPage: "Buksan ang page na Ayos ng Data",
     clickExportAllData: 'I-click ang "I-export Lahat ng Data"',
     saveJsonFile: "I-save ang JSON file sa ligtas na lugar o sa USB",
-    installApplication: "I-install ang Mechanic Shop app",
+    installApplication: "I-install ang ShopFlow app",
     launchApplication: "Buksan ang app",
     clickImportDataFromFile: 'I-click ang "Mag-import ng Data mula sa File"',
     selectBackupFile:

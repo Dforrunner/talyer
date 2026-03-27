@@ -29,7 +29,7 @@ export function buildInvoicePrintHtml({
   invoice,
   businessSettings,
   logoSrc,
-  fallbackBusinessName = "Shop Manager",
+  fallbackBusinessName = "ShopFlow",
   logoAlt = "Logo",
 }: BuildInvoicePrintHtmlOptions) {
   const invoiceLanguage = resolveInvoiceLanguage(invoice?.invoice_language);

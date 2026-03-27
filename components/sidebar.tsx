@@ -59,7 +59,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, onPageChange, lowStockCo
         <AppBrand
           titleClassName="text-lg text-sidebar-foreground"
           subtitleClassName="text-sidebar-foreground/60"
-          subtitle={t('shopManager')}
+          subtitle={t('appTagline')}
         />
       </div>
 

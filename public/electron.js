@@ -5,6 +5,8 @@ const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const { autoUpdater } = require('electron-updater');
 
+app.setName('ShopFlow');
+
 const isDev = !app.isPackaged;
 
 let mainWindow;
@@ -100,6 +102,50 @@ function ensureColumnExists(tableName, columnName, definition) {
   if (!hasColumn(tableName, columnName)) {
     db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition}`);
   }
+}
+
+function migrateLegacyUserData() {
+  const currentUserDataPath = app.getPath('userData');
+
+  ensureDirectory(currentUserDataPath);
+
+  const hasCurrentData = fs.readdirSync(currentUserDataPath).length > 0;
+  if (hasCurrentData) {
+    return;
+  }
+
+  const appDataPath = app.getPath('appData');
+  const legacyPaths = [
+    path.join(appDataPath, 'Mechanic Shop Invoicing'),
+    path.join(appDataPath, 'mechanic-shop-manager'),
+  ].filter((legacyPath) => legacyPath !== currentUserDataPath);
+
+  for (const legacyPath of legacyPaths) {
+    if (!fs.existsSync(legacyPath)) {
+      continue;
+    }
+
+    fs.cpSync(legacyPath, currentUserDataPath, {
+      recursive: true,
+      force: false,
+      errorOnExist: false,
+    });
+    return;
+  }
+}
+
+function resolveDatabasePath() {
+  const userDataPath = app.getPath('userData');
+  const currentDbPath = path.join(userDataPath, 'shopflow.db');
+  const legacyDbPath = path.join(userDataPath, 'mechanic-shop.db');
+
+  ensureDirectory(userDataPath);
+
+  if (!fs.existsSync(currentDbPath) && fs.existsSync(legacyDbPath)) {
+    fs.renameSync(legacyDbPath, currentDbPath);
+  }
+
+  return currentDbPath;
 }
 
 function isPortableBuild() {
@@ -234,11 +280,7 @@ function initializeAutoUpdater() {
 
 // Initialize database
 function initializeDatabase() {
-  const dbPath = path.join(app.getPath('userData'), 'mechanic-shop.db');
-  
-  if (!fs.existsSync(app.getPath('userData'))) {
-    fs.mkdirSync(app.getPath('userData'), { recursive: true });
-  }
+  const dbPath = resolveDatabasePath();
 
   db = new Database(dbPath);
   
@@ -423,7 +465,7 @@ function initializeDatabase() {
     db.prepare(`
       INSERT INTO business_settings (business_name, currency, language)
       VALUES (?, ?, ?)
-    `).run('My Mechanic Shop', 'PHP', 'en');
+    `).run('My Shop', 'PHP', 'en');
   }
 }
 
@@ -1307,14 +1349,14 @@ function createDesktopShortcut() {
   try {
     if (platform === 'win32') {
       // Windows: Create .lnk shortcut using PowerShell
-      const shortcutPath = path.join(desktopPath, 'Mechanic Shop Invoicing.lnk');
+      const shortcutPath = path.join(desktopPath, 'ShopFlow.lnk');
       
       const ps = `
         $WshShell = New-Object -ComObject WScript.Shell;
         $shortcut = $WshShell.CreateShortcut('${shortcutPath}');
         $shortcut.TargetPath = '${appPath}';
         $shortcut.WorkingDirectory = '${path.dirname(appPath)}';
-        $shortcut.Description = 'Mechanic Shop Invoicing and Inventory System';
+        $shortcut.Description = 'ShopFlow business operations app';
         $shortcut.IconLocation = '${appPath}';
         $shortcut.Save();
       `;
@@ -1324,7 +1366,7 @@ function createDesktopShortcut() {
     } else if (platform === 'darwin') {
       // macOS: Create alias for the app
       const appsPath = path.join(os.homedir(), 'Applications');
-      const appName = 'Mechanic Shop Invoicing.app';
+      const appName = 'ShopFlow.app';
       const appBundle = path.dirname(appPath);
       const shortcutPath = path.join(desktopPath, appName);
       
@@ -1336,13 +1378,13 @@ function createDesktopShortcut() {
       }
     } else if (platform === 'linux') {
       // Linux: Create .desktop file
-      const shortcutPath = path.join(desktopPath, 'Mechanic-Shop-Invoicing.desktop');
+      const shortcutPath = path.join(desktopPath, 'ShopFlow.desktop');
       const desktopEntry = `[Desktop Entry]
 Version=1.0
 Type=Application
-Name=Mechanic Shop Invoicing
+Name=ShopFlow
 Exec=${appPath}
-Comment=Invoicing and Inventory Management System for Mechanic Shops
+Comment=Business operations app for shops
 Icon=application-x-executable
 Categories=Utility;Office;
 `;
@@ -1358,6 +1400,7 @@ Categories=Utility;Office;
 }
 
 app.on('ready', () => {
+  migrateLegacyUserData();
   initializeDatabase();
   initializeAutoUpdater();
   createWindow();

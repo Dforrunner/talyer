@@ -36,9 +36,11 @@ const checks = [
     files: ['lib/electron-api.ts'],
     validate: (content) => {
       return content.includes('safeDbQuery') &&
+             content.includes('safeDbGet') &&
+             content.includes('safeDbRun') &&
              content.includes('safeDataExport') &&
              content.includes('safeDataImport') &&
-             content.includes('isElectron()');
+             content.includes('export const isElectron = () =>');
     }
   },
   {
@@ -75,9 +77,11 @@ const checks = [
     name: '✓ Business Settings Null Handling',
     files: ['components/pages/business-settings.tsx'],
     validate: (content) => {
-      return content.includes('setSettings({') &&
-             content.includes('business_name: \'\'') &&
-             content.includes('currency: \'PHP\'');
+      return content.includes('const loadSettings = async () =>') &&
+             content.includes('setSettings({') &&
+             content.includes('business_name: ""') &&
+             content.includes('currency: "PHP"') &&
+             content.includes('setPendingLogoUpload(null)');
     }
   },
   {
@@ -86,7 +90,8 @@ const checks = [
     validate: (content) => {
       return content.includes('setBusinessSettings(null)') &&
              content.includes('setProducts([])') &&
-      content.includes('if (settings) {');
+             content.includes('createEmptyInvoice(') &&
+             content.includes('lastSavedSnapshotRef.current');
     }
   },
   {
@@ -95,7 +100,8 @@ const checks = [
     validate: (content) => {
       const json = JSON.parse(content);
       return json.main === 'public/electron.js' &&
-             json.build?.appId === 'com.mechanic-shop.invoicing' &&
+             json.build?.appId === 'com.dforrunner.shopflow' &&
+             json.build?.productName === 'ShopFlow' &&
              json.scripts?.dev?.includes('concurrently') &&
              json.dependencies?.['better-sqlite3'] &&
              json.dependencies?.['pdfkit'];
