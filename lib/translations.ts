@@ -10,13 +10,14 @@ export const translations = {
     revenueTracking: "Revenue Tracking",
     expensesIncome: "Expenses & Income",
     businessSettings: "Business Settings",
+    appSettings: "App Settings",
     dataManagement: "Data Management",
     lowStockAlert: "Low Stock Alert",
     checkInventorySoon: "Check inventory soon",
     shopManager: "ShopFlow",
     appTagline: "Business Operations",
     itemsLow: "Items Low",
-    versionLabel: "ShopFlow v1.0",
+    versionLabel: "ShopFlow v1.2.1",
 
     // Dashboard
     totalProducts: "Total Products",
@@ -69,7 +70,7 @@ export const translations = {
       "They are collected automatically from your saved invoices. Open Customer Contacts to reuse them on a new draft.",
     faqQuestion4: "How do I move this app to another computer?",
     faqAnswer4:
-      "Use Data Management to export your data on the old computer, then import that file on the new computer.",
+      "Use App Settings > Data Management to export your data on the old computer, then import that file on the new computer.",
 
     // Inventory
     products: "Products",
@@ -246,7 +247,7 @@ export const translations = {
     transferDataBetweenComputers: "How to Transfer Data Between Computers",
     step1OriginalComputer: "Step 1: On the Original Computer",
     step2NewComputer: "Step 2: On the New Computer",
-    openDataManagementPage: "Open the Data Management page",
+    openDataManagementPage: "Open App Settings and go to Data Management",
     clickExportAllData: 'Click the "Export All Data" button',
     saveJsonFile: "Save the JSON file to a safe location or USB drive",
     installApplication: "Install the ShopFlow application",
@@ -388,6 +389,7 @@ export const translations = {
     language: "Language",
     businessLogo: "Business Logo",
     configureBusinessInfo: "Configure your business information for invoices",
+    appSettingsDesc: "Manage app preferences, backups, and updates",
     noLogo: "No logo",
     recommendedLogo: "Recommended: Square image, 200x200px, PNG or JPG",
     logoStorageInfo:
@@ -461,13 +463,14 @@ export const translations = {
     revenueTracking: "Tracking ng Kita",
     expensesIncome: "Gastos at Kita",
     businessSettings: "Settings ng Negosyo",
+    appSettings: "Settings ng App",
     dataManagement: "Ayos ng Data",
     lowStockAlert: "Mababang Stock",
     checkInventorySoon: "Check agad ang inventory",
     shopManager: "ShopFlow",
     appTagline: "Operasyon ng Negosyo",
     itemsLow: "Konti na Stock",
-    versionLabel: "ShopFlow v1.0",
+    versionLabel: "ShopFlow v1.2.1",
 
     // Dashboard
     totalProducts: "Total na Produkto",
@@ -520,7 +523,7 @@ export const translations = {
       "Awtomatiko itong kinukuha mula sa mga na-save mong invoice. Buksan ang Contact ng Customer para magamit ulit sa bagong draft.",
     faqQuestion4: "Paano ko ililipat ang app sa ibang computer?",
     faqAnswer4:
-      "Gamitin ang Ayos ng Data para mag-export sa lumang computer, tapos i-import ang file na iyon sa bagong computer.",
+      "Gamitin ang Settings ng App > Ayos ng Data para mag-export sa lumang computer, tapos i-import ang file na iyon sa bagong computer.",
 
     // Inventory
     products: "Mga Produkto",
@@ -698,7 +701,7 @@ export const translations = {
     transferDataBetweenComputers: "Paano Maglipat ng Data sa Ibang Computer",
     step1OriginalComputer: "Step 1: Sa Lumang Computer",
     step2NewComputer: "Step 2: Sa Bagong Computer",
-    openDataManagementPage: "Buksan ang page na Ayos ng Data",
+    openDataManagementPage: "Buksan ang Settings ng App at pumunta sa Ayos ng Data",
     clickExportAllData: 'I-click ang "I-export Lahat ng Data"',
     saveJsonFile: "I-save ang JSON file sa ligtas na lugar o sa USB",
     installApplication: "I-install ang ShopFlow app",
@@ -840,6 +843,7 @@ export const translations = {
     language: "Wika",
     businessLogo: "Logo",
     configureBusinessInfo: "Ayusin ang info ng negosyo",
+    appSettingsDesc: "Ayusin ang preferences, backup, at updates ng app",
     noLogo: "Walang logo",
     recommendedLogo: "Recommended: 200x200px, PNG/JPG",
     logoStorageInfo:

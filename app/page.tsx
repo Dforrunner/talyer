@@ -12,11 +12,11 @@ type Page =
   | 'dashboard'
   | 'inventory'
   | 'business-settings'
+  | 'app-settings'
   | 'invoices'
   | 'active-invoices'
   | 'invoice-history'
   | 'revenue-tracking'
-  | 'data-management'
   | 'expenses-income'
   | 'customer-contacts';
 
@@ -49,6 +49,10 @@ const BusinessSettingsPage = dynamic(() => import('@/components/pages/business-s
   loading: () => <PageLoadingShell />,
 });
 
+const AppSettingsPage = dynamic(() => import('@/components/pages/app-settings'), {
+  loading: () => <PageLoadingShell />,
+});
+
 const InvoiceCreatorPage = dynamic(() => import('@/components/pages/invoice-creator'), {
   loading: () => <PageLoadingShell />,
 });
@@ -62,10 +66,6 @@ const InvoiceHistoryPage = dynamic(() => import('@/components/pages/invoice-hist
 });
 
 const RevenueTrackingPage = dynamic(() => import('@/components/pages/revenue-tracking'), {
-  loading: () => <PageLoadingShell />,
-});
-
-const DataManagementPage = dynamic(() => import('@/components/pages/data-management'), {
   loading: () => <PageLoadingShell />,
 });
 
@@ -190,6 +190,8 @@ export default function Home() {
         return <InventoryPage onLowStockUpdate={setLowStockCount} />;
       case 'business-settings':
         return <BusinessSettingsPage />;
+      case 'app-settings':
+        return <AppSettingsPage />;
       case 'invoices':
         return (
           <InvoiceCreatorPage
@@ -215,8 +217,6 @@ export default function Home() {
         return <RevenueTrackingPage />;
       case 'expenses-income':
         return <ExpensesIncomePage />;
-      case 'data-management':
-        return <DataManagementPage />;
       default:
         return <DashboardPage onLowStockUpdate={setLowStockCount} onNavigate={handleNavigate} />;
     }

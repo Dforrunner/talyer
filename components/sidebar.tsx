@@ -7,13 +7,12 @@ import { useLanguage } from '@/hooks/use-language';
 import {
   LayoutDashboard,
   Package,
-  FileText,
   Settings,
+  Building2,
   TrendingUp,
   AlertTriangle,
   PlusCircle,
   History,
-  Download,
   DollarSign,
   ClipboardList,
   BookUser,
@@ -23,11 +22,11 @@ type Page =
   | 'dashboard'
   | 'inventory'
   | 'business-settings'
+  | 'app-settings'
   | 'invoices'
   | 'active-invoices'
   | 'invoice-history'
   | 'revenue-tracking'
-  | 'data-management'
   | 'expenses-income'
   | 'customer-contacts';
 
@@ -48,8 +47,8 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, onPageChange, lowStockCo
     { id: 'inventory' as Page, label: t('inventory'), icon: Package, badge: lowStockCount > 0 ? lowStockCount : null },
     { id: 'expenses-income' as Page, label: t('expensesIncome'), icon: DollarSign },
     { id: 'revenue-tracking' as Page, label: t('revenueTracking'), icon: TrendingUp },
-    { id: 'data-management' as Page, label: t('dataManagement'), icon: Download },
-    { id: 'business-settings' as Page, label: t('businessSettings'), icon: Settings },
+    { id: 'business-settings' as Page, label: t('businessSettings'), icon: Building2 },
+    { id: 'app-settings' as Page, label: t('appSettings'), icon: Settings },
   ];
 
   return (

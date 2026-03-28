@@ -8,16 +8,8 @@ import { useAppDialog } from "@/hooks/use-app-dialog";
 import { PhoneInput } from "@/components/ui/phone-input";
 import { Upload } from "lucide-react";
 import { db } from "@/lib/db";
-import {
-  safeAppGetVersion,
-  safeFileSave,
-  safeUpdatesCheck,
-  safeUpdatesDownload,
-  safeUpdatesGetState,
-  safeUpdatesInstall,
-  getElectronAPI,
-} from "@/lib/electron-api";
-import { useLanguage, type Language } from "@/hooks/use-language";
+import { safeFileSave, getElectronAPI } from "@/lib/electron-api";
+import { useLanguage } from "@/hooks/use-language";
 import { normalizePhilippinePhone } from "@/lib/phone-utils";
 
 interface BusinessSettings {
@@ -32,7 +24,6 @@ interface BusinessSettings {
   tax_id: string;
   currency: string;
   vat_rate: number;
-  language?: string;
 }
 
 interface PendingLogoUpload {
@@ -40,27 +31,8 @@ interface PendingLogoUpload {
   fileName: string;
 }
 
-interface UpdateState {
-  status:
-    | "idle"
-    | "unsupported"
-    | "checking"
-    | "available"
-    | "not-available"
-    | "downloading"
-    | "downloaded"
-    | "error";
-  currentVersion: string | null;
-  latestVersion: string | null;
-  progress?: {
-    percent?: number;
-  } | null;
-  releaseNotes?: string;
-  message?: string;
-}
-
 const BusinessSettingsPage: React.FC = () => {
-  const { language, setLanguage, t } = useLanguage();
+  const { t } = useLanguage();
   const { showAlert } = useAppDialog();
   const [settings, setSettings] = useState<BusinessSettings | null>(null);
   const [loading, setLoading] = useState(true);
@@ -68,46 +40,9 @@ const BusinessSettingsPage: React.FC = () => {
   const [logoPreview, setLogoPreview] = useState<string>("");
   const [pendingLogoUpload, setPendingLogoUpload] =
     useState<PendingLogoUpload | null>(null);
-  const [appVersion, setAppVersion] = useState<string>("");
-  const [updateState, setUpdateState] = useState<UpdateState | null>(null);
-
-  useEffect(() => {
-    setSettings((prev) => (prev ? { ...prev, language } : prev));
-  }, [language]);
 
   useEffect(() => {
     loadSettings();
-  }, []);
-
-  useEffect(() => {
-    let unsubscribe: (() => void) | undefined;
-
-    const loadUpdater = async () => {
-      try {
-        const [version, initialState] = await Promise.all([
-          safeAppGetVersion(),
-          safeUpdatesGetState(),
-        ]);
-
-        setAppVersion(version || "");
-        setUpdateState(initialState);
-
-        const api = getElectronAPI();
-        if (api?.updates?.onStatusChange) {
-          unsubscribe = api.updates.onStatusChange((nextState: UpdateState) => {
-            setUpdateState(nextState);
-          });
-        }
-      } catch (error) {
-        console.error("[BusinessSettings] Error loading updater state:", error);
-      }
-    };
-
-    void loadUpdater();
-
-    return () => {
-      unsubscribe?.();
-    };
   }, []);
 
   const loadSettings = async () => {
@@ -116,7 +51,6 @@ const BusinessSettingsPage: React.FC = () => {
       const result = await db.get("SELECT * FROM business_settings LIMIT 1");
       if (result) {
         setSettings({
-          ...result,
           business_name: result.business_name || "",
           logo_path: result.logo_path || "",
           address: result.address || "",
@@ -127,7 +61,7 @@ const BusinessSettingsPage: React.FC = () => {
           tax_id: result.tax_id || "",
           currency: result.currency || "PHP",
           vat_rate: result.vat_rate || 0,
-          language: result.language || language,
+          id: result.id || 1,
         });
         setLogoPreview("");
         setPendingLogoUpload(null);
@@ -147,7 +81,7 @@ const BusinessSettingsPage: React.FC = () => {
       } else {
         // Initialize with default values if no settings exist
         setSettings({
-          id: 0,
+          id: 1,
           business_name: "",
           logo_path: "",
           address: "",
@@ -158,7 +92,6 @@ const BusinessSettingsPage: React.FC = () => {
           tax_id: "",
           currency: "PHP",
           vat_rate: 0,
-          language,
         });
         setLogoPreview("");
         setPendingLogoUpload(null);
@@ -167,7 +100,7 @@ const BusinessSettingsPage: React.FC = () => {
       console.error("[BusinessSettings] Error loading settings:", error);
       // Set default values on error
       setSettings({
-        id: 0,
+        id: 1,
         business_name: "",
         logo_path: "",
         address: "",
@@ -178,7 +111,6 @@ const BusinessSettingsPage: React.FC = () => {
         tax_id: "",
         currency: "PHP",
         vat_rate: 0,
-        language,
       });
       setLogoPreview("");
       setPendingLogoUpload(null);
@@ -193,10 +125,6 @@ const BusinessSettingsPage: React.FC = () => {
     >,
   ) => {
     const { name, value } = e.target;
-    if (name === "language") {
-      void setLanguage(value as Language);
-    }
-
     setSettings((prev) =>
       prev
         ? {
@@ -259,7 +187,7 @@ const BusinessSettingsPage: React.FC = () => {
       await db.run(
         `UPDATE business_settings SET 
           business_name = ?, logo_path = ?, address = ?, city = ?, postal_code = ?,
-          phone = ?, email = ?, tax_id = ?, currency = ?, vat_rate = ?, language = ?,
+          phone = ?, email = ?, tax_id = ?, currency = ?, vat_rate = ?,
           updated_at = CURRENT_TIMESTAMP
          WHERE id = ?`,
         [
@@ -273,7 +201,6 @@ const BusinessSettingsPage: React.FC = () => {
           settings.tax_id,
           settings.currency,
           settings.vat_rate,
-          settings.language || language,
           settings.id,
         ],
       );
@@ -298,69 +225,6 @@ const BusinessSettingsPage: React.FC = () => {
     }
   };
 
-  const getUpdateStatusText = () => {
-    switch (updateState?.status) {
-      case "unsupported":
-        if (updateState.message === "disabled_in_development") {
-          return t("updateUnsupportedDevelopment");
-        }
-        if (updateState.message === "portable_build_not_supported") {
-          return t("updateUnsupportedPortable");
-        }
-        return t("updateUnsupportedPlatform");
-      case "checking":
-        return t("checkingForUpdates");
-      case "available":
-        return t("updateAvailableMessage");
-      case "not-available":
-        return t("appIsUpToDate");
-      case "downloading":
-        return t("downloadingUpdate");
-      case "downloaded":
-        return t("updateReadyToInstall");
-      case "error":
-        return updateState.message
-          ? `${t("updateErrorGeneric")} ${updateState.message}`
-          : t("updateErrorGeneric");
-      case "idle":
-      default:
-        return t("updateStatusIdle");
-    }
-  };
-
-  const handleCheckForUpdates = async () => {
-    try {
-      const nextState = await safeUpdatesCheck();
-      if (nextState) {
-        setUpdateState(nextState);
-      }
-    } catch (error) {
-      console.error("[BusinessSettings] Error checking updates:", error);
-      await showAlert({ title: t("updateErrorGeneric"), confirmLabel: t("close") });
-    }
-  };
-
-  const handleDownloadUpdate = async () => {
-    try {
-      const nextState = await safeUpdatesDownload();
-      if (nextState) {
-        setUpdateState(nextState);
-      }
-    } catch (error) {
-      console.error("[BusinessSettings] Error downloading update:", error);
-      await showAlert({ title: t("updateErrorGeneric"), confirmLabel: t("close") });
-    }
-  };
-
-  const handleInstallUpdate = async () => {
-    try {
-      await safeUpdatesInstall();
-    } catch (error) {
-      console.error("[BusinessSettings] Error installing update:", error);
-      await showAlert({ title: t("updateErrorGeneric"), confirmLabel: t("close") });
-    }
-  };
-
   if (loading) {
     return (
       <div className="p-8">
@@ -378,7 +242,7 @@ const BusinessSettingsPage: React.FC = () => {
   }
 
   return (
-    <div className="p-8 space-y-8 max-w-4xl mx-auto">
+    <div className="p-8 space-y-8 max-w-4xl">
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-foreground">
@@ -567,91 +431,6 @@ const BusinessSettingsPage: React.FC = () => {
               {t("vatHelpText")}
             </p>
           </div>
-        </div>
-      </Card>
-
-      {/* Preferences Section */}
-      <Card className="p-6">
-        <h2 className="text-lg font-semibold mb-4">{t("preferences")}</h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium mb-2">{t("language")}</label>
-            <select
-              name="language"
-              value={settings.language || "en"}
-              onChange={handleChange}
-              className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground"
-            >
-              <option value="en">{t("english")}</option>
-              <option value="tl">{t("tagalog")}</option>
-            </select>
-          </div>
-        </div>
-      </Card>
-
-      <Card className="p-6">
-        <h2 className="text-lg font-semibold mb-2">{t("appUpdates")}</h2>
-        <p className="text-sm text-muted-foreground mb-5">
-          {t("appUpdatesDesc")}
-        </p>
-
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div className="rounded-lg border border-border bg-muted/20 p-4">
-            <p className="text-sm text-muted-foreground">{t("currentVersion")}</p>
-            <p className="mt-1 text-lg font-semibold">
-              {appVersion || updateState?.currentVersion || "-"}
-            </p>
-          </div>
-          <div className="rounded-lg border border-border bg-muted/20 p-4">
-            <p className="text-sm text-muted-foreground">{t("availableVersion")}</p>
-            <p className="mt-1 text-lg font-semibold">
-              {updateState?.latestVersion || "-"}
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-4 rounded-lg border border-border p-4">
-          <p className="text-sm font-medium text-foreground">{getUpdateStatusText()}</p>
-          {updateState?.status === "downloading" && (
-            <p className="mt-2 text-sm text-muted-foreground">
-              {t("updateProgress")}: {Math.round(updateState.progress?.percent || 0)}%
-            </p>
-          )}
-          {updateState?.releaseNotes && (
-            <div className="mt-4">
-              <p className="text-sm font-medium text-foreground">
-                {t("updateReleaseNotes")}
-              </p>
-              <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">
-                {updateState.releaseNotes}
-              </p>
-            </div>
-          )}
-        </div>
-
-        <div className="mt-4 flex flex-wrap gap-3">
-          <Button
-            variant="outline"
-            onClick={() => void handleCheckForUpdates()}
-            disabled={updateState?.status === "checking"}
-          >
-            {updateState?.status === "checking"
-              ? t("checkingForUpdates")
-              : t("checkForUpdates")}
-          </Button>
-          {updateState?.status === "available" && (
-            <Button onClick={() => void handleDownloadUpdate()}>
-              {t("downloadUpdate")}
-            </Button>
-          )}
-          {updateState?.status === "downloading" && (
-            <Button disabled>{t("downloadingUpdate")}</Button>
-          )}
-          {updateState?.status === "downloaded" && (
-            <Button onClick={() => void handleInstallUpdate()}>
-              {t("installUpdateNow")}
-            </Button>
-          )}
         </div>
       </Card>
 

@@ -36,8 +36,7 @@ interface DashboardPageProps {
       | 'business-settings'
       | 'active-invoices'
       | 'invoice-history'
-      | 'customer-contacts'
-      | 'data-management',
+      | 'customer-contacts',
   ) => void;
 }
 
