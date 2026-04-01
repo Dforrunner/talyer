@@ -37,7 +37,9 @@ export async function generateInvoicePdfForInvoice(invoiceId: number) {
       customer_phone: normalizePhilippinePhone(invoice.customer_phone || ''),
       labels: buildInvoicePdfLabels(invoice.invoice_language),
       items: items.map((item: any) => ({
+        type: item.item_type === 'labor' ? 'labor' : 'product',
         description: item.description || item.product_name || '',
+        product_name: item.product_name || '',
         quantity: item.quantity,
         unit_price: item.unit_price,
         amount: item.amount,

@@ -7,15 +7,20 @@ import { useFilePreview } from "@/hooks/use-file-preview";
 import { useLanguage } from "@/hooks/use-language";
 import { buildInvoicePrintHtml } from "@/lib/invoice-print-html";
 import {
+  calculateInvoiceItemsSubtotal,
   buildVehicleInfoLines,
+  filterInvoiceLineItemsForOutput,
   formatInvoiceCurrency,
   formatInvoiceDate,
+  getInvoiceItemDescription,
   getInvoiceTranslator,
   resolveInvoiceLanguage,
+  splitInvoiceItemsByType,
 } from "@/lib/invoice-utils";
 
 interface InvoiceItem {
   id?: string | number;
+  type?: "product" | "labor";
   description: string;
   product_name?: string | null;
   quantity: number;
@@ -49,6 +54,179 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
     value: Date | string | number,
     options?: Intl.DateTimeFormatOptions,
   ) => formatInvoiceDate(value, invoiceLanguage, options);
+  const outputItems = filterInvoiceLineItemsForOutput(invoice?.items || []);
+  const { laborItems, partsMaterialItems } = splitInvoiceItemsByType(
+    outputItems,
+  );
+
+  const renderItemsTable = (
+    title: string,
+    items: InvoiceItem[],
+    emptyLabel: string,
+    subtotalLabel: string,
+  ) => {
+    const sectionSubtotal = calculateInvoiceItemsSubtotal(items);
+
+    return (
+      <div style={{ marginBottom: "10px" }}>
+        <div
+          style={{
+            fontSize: "10px",
+            fontWeight: "bold",
+            color: "#2c3e50",
+            marginBottom: "4px",
+          }}
+        >
+          {title.toUpperCase()}
+        </div>
+        <div
+          style={{
+            border: "1px solid #d8dee6",
+            borderRadius: "6px",
+            overflow: "hidden",
+           paddingBottom: "6px",
+          }}
+        >
+          <table
+            style={{
+              width: "100%",
+              marginBottom: "6px",
+              borderCollapse: "collapse",
+            }}
+          >
+            <thead>
+              <tr
+                style={{
+                  backgroundColor: "#f5f5f5",
+                  borderBottom: "2px solid #2c3e50",
+                }}
+              >
+                <th
+                  style={{
+                    padding: "4px 6px",
+                    textAlign: "left",
+                    fontWeight: "bold",
+                    fontSize: "8px",
+                    whiteSpace: "nowrap",
+                    borderBottom: "2px solid #2c3e50",
+                  }}
+                >
+                  {invoiceT("description")}
+                </th>
+                <th
+                  style={{
+                    padding: "4px 6px",
+                    textAlign: "center",
+                    fontWeight: "bold",
+                    width: "72px",
+                    fontSize: "8px",
+                    whiteSpace: "nowrap",
+                    borderBottom: "2px solid #2c3e50",
+                  }}
+                >
+                  {invoiceT("quantityShort")}
+                </th>
+                <th
+                  style={{
+                    padding: "4px 6px",
+                    textAlign: "right",
+                    fontWeight: "bold",
+                    width: "106px",
+                    fontSize: "8px",
+                    whiteSpace: "nowrap",
+                    borderBottom: "2px solid #2c3e50",
+                  }}
+                >
+                  {invoiceT("unitPrice")}
+                </th>
+                <th
+                  style={{
+                    padding: "4px 6px",
+                    textAlign: "right",
+                    fontWeight: "bold",
+                    width: "112px",
+                    fontSize: "8px",
+                    whiteSpace: "nowrap",
+                    borderBottom: "2px solid #2c3e50",
+                  }}
+                >
+                  {invoiceT("amount")}
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {items.length > 0 ? (
+                items.map((item: InvoiceItem, index: number) => (
+                  <tr
+                    key={item.id ?? index}
+                    style={{ borderBottom: "1px solid #ddd" }}
+                  >
+                    <td
+                      style={{
+                        padding: "4px 6px",
+                        textAlign: "left",
+                        whiteSpace: "pre-wrap",
+                        overflowWrap: "anywhere",
+                        lineHeight: "1.2",
+                      }}
+                    >
+                      {getInvoiceItemDescription(item)}
+                    </td>
+                    <td style={{ padding: "4px 6px", textAlign: "center" }}>
+                      {item.quantity}
+                    </td>
+                    <td style={{ padding: "4px 6px", textAlign: "right" }}>
+                      {formatMoney(item.unit_price)}
+                    </td>
+                    <td
+                      style={{
+                        padding: "4px 6px",
+                        textAlign: "right",
+                        fontWeight: "bold",
+                      }}
+                    >
+                      {formatMoney(item.amount)}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr style={{ borderBottom: "1px solid #ddd" }}>
+                  <td
+                    colSpan={4}
+                    style={{
+                      padding: "6px",
+                      textAlign: "center",
+                      color: "#666",
+                      fontStyle: "italic",
+                    }}
+                  >
+                    {emptyLabel}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+
+          <div style={{ display: "flex", justifyContent: "flex-end" }}>
+            <div style={{ width: "240px", paddingTop: "5px" }}>
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  fontWeight: "bold",
+                  color: "#2c3e50",
+                  paddingRight: "6px"
+                }}
+              >
+                <span>{subtotalLabel}:</span>
+                <span>{formatMoney(sectionSubtotal)}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const handlePrint = () => {
     const printWindow = window.open("", "", "height=600,width=900");
@@ -102,7 +280,7 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
 
         <div className="flex flex-1 justify-center overflow-auto bg-gray-100 p-4">
           <div
-            className="bg-white p-8"
+            className="bg-white p-5"
             style={{
               width: '8.5in',
               minHeight: '11in',
@@ -110,13 +288,13 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
               fontSize: '13px',
               fontFamily: 'Arial, sans-serif',
               color: '#333',
-              lineHeight: '1.5',
+              lineHeight: '1.25',
             }}
           >
             <div
               style={{
-                marginBottom: '20px',
-                paddingBottom: '20px',
+                marginBottom: '8px',
+                paddingBottom: '8px',
                 borderBottom: '2px solid #2c3e50',
               }}
             >
@@ -125,35 +303,39 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'start',
+                  gap: '14px',
                 }}
               >
                 <div>
-                  {logoSrc && (
-                    <img
-                      src={logoSrc}
-                      alt={t('logo')}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '4px' }}>
+                    {logoSrc && (
+                      <img
+                        src={logoSrc}
+                        alt={t('logo')}
+                        style={{
+                          maxWidth: '68px',
+                          maxHeight: '42px',
+                          objectFit: 'contain',
+                          flexShrink: 0,
+                        }}
+                      />
+                    )}
+                    <div
                       style={{
-                        maxWidth: '120px',
-                      maxHeight: '80px',
-                        marginBottom: '10px',
+                        fontSize: '20px',
+                        fontWeight: 'bold',
+                        color: '#2c3e50',
+                        lineHeight: '1.1',
                       }}
-                    />
-                  )}
-                  <div
-                    style={{
-                      fontSize: '28px',
-                      fontWeight: 'bold',
-                      color: '#2c3e50',
-                      marginBottom: '5px',
-                    }}
-                  >
-                    {businessSettings?.business_name || t('shopManager')}
+                    >
+                      {businessSettings?.business_name || t('shopManager')}
+                    </div>
                   </div>
                   <div
                     style={{
-                      fontSize: '12px',
+                      fontSize: '10px',
                       color: '#666',
-                      lineHeight: '1.6',
+                      lineHeight: '1.3',
                     }}
                   >
                     {businessSettings?.address && <div>{businessSettings.address}</div>}
@@ -183,23 +365,23 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
                 <div style={{ textAlign: 'right' }}>
                   <div
                     style={{
-                      fontSize: '32px',
+                      fontSize: '26px',
                       fontWeight: 'bold',
                       color: '#2c3e50',
-                      marginBottom: '10px',
+                      marginBottom: '4px',
                     }}
                   >
                     {invoiceT('invoiceLabel').toUpperCase()}
                   </div>
-                  <div style={{ fontSize: '13px', marginBottom: '4px' }}>
+                  <div style={{ fontSize: '11px', marginBottom: '2px' }}>
                     <strong>{invoiceT('invoiceNumber')}:</strong>{' '}
                     {invoice.invoice_number}
                   </div>
-                  <div style={{ fontSize: '13px', marginBottom: '4px' }}>
+                  <div style={{ fontSize: '11px', marginBottom: '2px' }}>
                     <strong>{invoiceT('date')}:</strong>{' '}
                     {formatDocDate(invoice.invoice_date)}
                   </div>
-                  <div style={{ fontSize: '13px', maxWidth: '220px' }}>
+                  <div style={{ fontSize: '11px', maxWidth: '220px' }}>
                     <strong>{invoiceT('dueDate')}:</strong> {dueDateLabel}
                   </div>
                 </div>
@@ -210,38 +392,38 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
               style={{
                 display: 'grid',
                 gridTemplateColumns: hasVehicleInfo ? '1fr 1fr' : '1fr',
-                gap: '20px',
-                marginTop: '14px',
-                marginBottom: '24px',
+                gap: '12px',
+                marginTop: '6px',
+                marginBottom: '10px',
               }}
             >
               <div>
                 <div
                   style={{
-                    fontSize: '12px',
+                    fontSize: '10px',
                     fontWeight: 'bold',
                     color: '#2c3e50',
-                    marginBottom: '8px',
+                    marginBottom: '4px',
                   }}
                 >
                   {invoiceT('billTo').toUpperCase()}:
                 </div>
                 <div
                   style={{
-                    fontSize: '15px',
+                    fontSize: '13px',
                     fontWeight: 'bold',
-                    marginBottom: '4px',
+                    marginBottom: '2px',
                   }}
                 >
                   {invoice.customer_name}
                 </div>
                 {invoice.customer_phone && (
-                  <div style={{ fontSize: '12px', color: '#666' }}>
+                  <div style={{ fontSize: '10px', color: '#666', lineHeight: '1.25' }}>
                     {invoiceT('phone')}: {invoice.customer_phone}
                   </div>
                 )}
                 {invoice.customer_email && (
-                  <div style={{ fontSize: '12px', color: '#666' }}>
+                  <div style={{ fontSize: '10px', color: '#666', lineHeight: '1.25' }}>
                     {invoiceT('email')}: {invoice.customer_email}
                   </div>
                 )}
@@ -251,15 +433,15 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
                 <div>
                   <div
                     style={{
-                      fontSize: '12px',
+                      fontSize: '10px',
                       fontWeight: 'bold',
                       color: '#2c3e50',
-                      marginBottom: '8px',
+                      marginBottom: '4px',
                     }}
                   >
                     {invoiceT('vehicleInformation').toUpperCase()}:
                   </div>
-                  <div style={{ fontSize: '12px', color: '#666', lineHeight: '1.6' }}>
+                  <div style={{ fontSize: '10px', color: '#666', lineHeight: '1.25' }}>
                     {vehicleInfoLines.map((line) => (
                       <div key={line}>{line}</div>
                     ))}
@@ -268,148 +450,68 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
               )}
             </div>
 
-            <table
-              style={{
-                width: '100%',
-                marginBottom: '20px',
-                borderCollapse: 'collapse',
-              }}
-            >
-              <thead>
-                <tr
-                  style={{
-                    backgroundColor: '#f5f5f5',
-                    borderBottom: '2px solid #2c3e50',
-                  }}
-                >
-                  <th
-                    style={{
-                      padding: '10px 8px',
-                      textAlign: 'left',
-                      fontWeight: 'bold',
-                      fontSize: '10px',
-                      whiteSpace: 'nowrap',
-                      borderBottom: '2px solid #2c3e50',
-                    }}
-                  >
-                    {invoiceT('description')}
-                  </th>
-                  <th
-                    style={{
-                      padding: '10px 8px',
-                      textAlign: 'center',
-                      fontWeight: 'bold',
-                      width: '72px',
-                      fontSize: '10px',
-                      whiteSpace: 'nowrap',
-                      borderBottom: '2px solid #2c3e50',
-                    }}
-                  >
-                    {invoiceT('quantityShort')}
-                  </th>
-                  <th
-                    style={{
-                      padding: '10px 8px',
-                      textAlign: 'right',
-                      fontWeight: 'bold',
-                      width: '106px',
-                      fontSize: '10px',
-                      whiteSpace: 'nowrap',
-                      borderBottom: '2px solid #2c3e50',
-                    }}
-                  >
-                    {invoiceT('unitPrice')}
-                  </th>
-                  <th
-                    style={{
-                      padding: '10px 8px',
-                      textAlign: 'right',
-                      fontWeight: 'bold',
-                      width: '112px',
-                      fontSize: '10px',
-                      whiteSpace: 'nowrap',
-                      borderBottom: '2px solid #2c3e50',
-                    }}
-                  >
-                    {invoiceT('amount')}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {(invoice.items || []).map((item: InvoiceItem, index: number) => (
-                  <tr
-                    key={item.id ?? index}
-                    style={{ borderBottom: '1px solid #ddd' }}
-                  >
-                    <td style={{ padding: '10px 8px', textAlign: 'left' }}>
-                      {item.description || item.product_name}
-                    </td>
-                    <td style={{ padding: '10px 8px', textAlign: 'center' }}>
-                      {item.quantity}
-                    </td>
-                    <td style={{ padding: '10px 8px', textAlign: 'right' }}>
-                      {formatMoney(item.unit_price)}
-                    </td>
-                    <td
-                      style={{
-                        padding: '10px 8px',
-                        textAlign: 'right',
-                        fontWeight: 'bold',
-                      }}
-                    >
-                      {formatMoney(item.amount)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            {renderItemsTable(
+              invoiceT("labor"),
+              laborItems as InvoiceItem[],
+              invoiceT("noLaborAddedYet"),
+              invoiceT("laborSubtotal"),
+            )}
+            {renderItemsTable(
+              invoiceT("partsMaterials"),
+              partsMaterialItems as InvoiceItem[],
+              invoiceT("noPartsMaterialsAddedYet"),
+              invoiceT("partsMaterialsSubtotal"),
+            )}
 
-            <div style={{ float: 'right', width: '280px', marginBottom: '20px' }}>
+            <div style={{ float: 'right', width: '240px', marginTop: '10px', marginBottom: '10px' }}>
               <div
                 style={{
-                  borderTop: '1px solid #ddd',
-                  paddingTop: '10px',
-                  marginBottom: '8px',
+                  
+                  paddingTop: '5px',
+                  marginBottom: '6px',
                 }}
               >
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    marginBottom: '8px',
-                  }}
-                >
-                  <span>{invoiceT('subtotal')}:</span>
-                  <span>{formatMoney(invoice.subtotal)}</span>
-                </div>
-
                 {Number(invoice.tax_rate) > 0 && (
-                  <div
-                    style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      marginBottom: '8px',
-                    }}
-                  >
-                    <span>
-                      {invoiceT('tax')} ({invoice.tax_rate}%):
-                    </span>
-                    <span>{formatMoney(invoice.tax_amount)}</span>
-                  </div>
+                  <>
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        marginBottom: '4px',
+                        fontSize: '11px',
+                      }}
+                    >
+                      <span>{invoiceT('subtotal')}:</span>
+                      <span>{formatMoney(invoice.subtotal)}</span>
+                    </div>
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        marginBottom: '4px',
+                        fontSize: '11px',
+                      }}
+                    >
+                      <span>
+                        {invoiceT('tax')} ({invoice.tax_rate}%):
+                      </span>
+                      <span>{formatMoney(invoice.tax_amount)}</span>
+                    </div>
+                  </>
                 )}
 
                 <div
                   style={{
                     display: 'flex',
                     justifyContent: 'space-between',
-                    paddingTop: '10px',
+                    paddingTop: '6px',
                     borderTop: '2px solid #2c3e50',
-                    fontSize: '18px',
+                    fontSize: '15px',
                     fontWeight: 'bold',
                     color: '#2c3e50',
                   }}
                 >
-                  <span>{invoiceT('total').toUpperCase()}:</span>
+                  <span>{invoiceT('totalAmount').toUpperCase()}:</span>
                   <span>{formatMoney(invoice.total)}</span>
                 </div>
               </div>
@@ -420,19 +522,20 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
             {invoice.notes && (
               <div
                 style={{
-                  marginTop: '20px',
-                  paddingTop: '20px',
+                  marginTop: '10px',
+                  paddingTop: '10px',
                   borderTop: '1px solid #ddd',
                 }}
               >
-                <div style={{ fontWeight: 'bold', marginBottom: '8px' }}>
+                <div style={{ fontWeight: 'bold', marginBottom: '4px', fontSize: '10px' }}>
                   {invoiceT('notes')}:
                 </div>
                 <div
                   style={{
-                    fontSize: '12px',
+                    fontSize: '10px',
                     color: '#666',
                     whiteSpace: 'pre-wrap',
+                    lineHeight: '1.25',
                   }}
                 >
                   {invoice.notes}
@@ -442,11 +545,11 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
 
             <div
               style={{
-                marginTop: '30px',
-                paddingTop: '20px',
+                marginTop: '14px',
+                paddingTop: '10px',
                 borderTop: '1px solid #ddd',
                 textAlign: 'center',
-                fontSize: '11px',
+                fontSize: '10px',
                 color: '#999',
               }}
             >

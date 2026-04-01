@@ -9,6 +9,7 @@ import { PhoneInput } from "@/components/ui/phone-input";
 import { db, file } from "@/lib/db";
 import { useFilePreview } from "@/hooks/use-file-preview";
 import {
+  defaultLanguage,
   supportedLanguages,
   type Language,
   useLanguage,
@@ -17,6 +18,7 @@ import { useAppDialog } from "@/hooks/use-app-dialog";
 import { getLocalDateInputValue } from "@/lib/date-utils";
 import { buildInvoicePrintHtml } from "@/lib/invoice-print-html";
 import { generateInvoicePdfForInvoice } from "@/lib/invoice-pdf";
+import { calculateInvoiceItemsSubtotal } from "@/lib/invoice-utils";
 import { normalizePhilippinePhone } from "@/lib/phone-utils";
 import { type CustomerContactPrefill } from "@/lib/customer-contacts";
 import InvoicePreview from "@/components/invoice-preview";
@@ -107,7 +109,7 @@ const buildInvoiceSnapshot = (invoice: InvoiceForm) =>
       type: item.type,
       product_id: item.product_id || null,
       product_name: item.product_name || "",
-      description: item.description.trim(),
+      description: item.description,
       quantity: Number(item.quantity) || 0,
       unit_price: Number(item.unit_price) || 0,
       cost_price: Number(item.cost_price) || 0,
@@ -128,10 +130,7 @@ const hasMeaningfulInvoiceContent = (invoice: InvoiceForm) =>
     invoice.items.length > 0,
   );
 
-const createEmptyInvoice = (
-  language: Language,
-  defaultTaxRate = 0,
-): InvoiceForm => {
+const createEmptyInvoice = (defaultTaxRate = 0): InvoiceForm => {
   const today = getLocalDateInputValue();
 
   return {
@@ -147,7 +146,7 @@ const createEmptyInvoice = (
     invoice_date: today,
     due_date: today,
     due_upon_receipt: true,
-    invoice_language: language,
+    invoice_language: defaultLanguage,
     notes: "",
     items: [],
     subtotal: 0,
@@ -185,13 +184,11 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
   onInvoiceCompleted,
   onEditorStateChange,
 }) => {
-  const { formatCurrency, language, t } = useLanguage();
+  const { formatCurrency, t } = useLanguage();
   const { showAlert } = useAppDialog();
   const [products, setProducts] = useState<Product[]>([]);
   const [businessSettings, setBusinessSettings] = useState<any>(null);
-  const [invoice, setInvoice] = useState<InvoiceForm>(
-    createEmptyInvoice(language),
-  );
+  const [invoice, setInvoice] = useState<InvoiceForm>(createEmptyInvoice());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
@@ -207,19 +204,6 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
   useEffect(() => {
     void loadData(invoiceId, customerPrefill);
   }, [customerPrefill, invoiceId]);
-
-  useEffect(() => {
-    if (
-      !invoice.id &&
-      !hasMeaningfulInvoiceContent(invoice) &&
-      invoice.invoice_language !== language
-    ) {
-      setInvoice((current) => ({
-        ...current,
-        invoice_language: language,
-      }));
-    }
-  }, [invoice, language]);
 
   useEffect(() => {
     if (loading) {
@@ -349,7 +333,7 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
             invoice_language:
               invoiceRow.invoice_language in supportedLanguages
                 ? invoiceRow.invoice_language
-                : language,
+                : defaultLanguage,
             notes: invoiceRow.notes || "",
             items: (itemRows || []).map((item: any) => ({
               id: createItemId(),
@@ -383,7 +367,6 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
       }
 
       const emptyInvoice = createEmptyInvoice(
-        language,
         Number(settings?.vat_rate) > 0 ? Number(settings.vat_rate) : 0,
       );
       const prefilledInvoice = applyCustomerPrefill(emptyInvoice, draftPrefill);
@@ -396,7 +379,7 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
       setProducts([]);
       setBusinessSettings(null);
       const emptyInvoice = applyCustomerPrefill(
-        createEmptyInvoice(language),
+        createEmptyInvoice(),
         draftPrefill,
       );
       lastSavedSnapshotRef.current = buildInvoiceSnapshot(emptyInvoice);
@@ -466,7 +449,7 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
     const newItem: InvoiceItem = {
       id: createItemId(),
       type,
-      description: type === "labor" ? t("laborWork") : "",
+      description: "",
       quantity: 1,
       unit_price: 0,
       cost_price: 0,
@@ -513,8 +496,6 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
           } else {
             updated.product_id = undefined;
             updated.product_name = undefined;
-            updated.description = "";
-            updated.unit_price = 0;
             updated.cost_price = 0;
           }
         }
@@ -592,17 +573,7 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
     }
 
     for (const item of invoice.items) {
-      if (item.type === "product" && !item.product_id) {
-        if (shouldAlert) {
-          await showAlert({
-            title: t("selectProductBeforeSaving"),
-            confirmLabel: t("close"),
-          });
-        }
-        return false;
-      }
-
-      if (item.type === "labor" && !item.description.trim()) {
+      if (!item.description.trim()) {
         if (shouldAlert) {
           await showAlert({
             title: t("enterItemDescription"),
@@ -773,7 +744,7 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
               savedInvoiceId,
               item.product_id || null,
               item.type,
-              (item.description || item.product_name || "").trim(),
+              item.description || item.product_name || "",
               Number(item.quantity) || 0,
               Number(item.unit_price) || 0,
               Number(item.cost_price) || 0,
@@ -980,6 +951,181 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
       ? invoice.invoice_date
       : invoice.due_date,
   };
+  const invoiceCurrency = businessSettings?.currency || "PHP";
+  const laborItems = invoice.items.filter((item) => item.type === "labor");
+  const partsMaterialItems = invoice.items.filter(
+    (item) => item.type === "product",
+  );
+  const renderItemSection = ({
+    title,
+    items,
+    emptyLabel,
+    subtotalLabel,
+    addLabel,
+    addType,
+  }: {
+    title: string;
+    items: InvoiceItem[];
+    emptyLabel: string;
+    subtotalLabel: string;
+    addLabel: string;
+    addType: "product" | "labor";
+  }) => {
+    const sectionSubtotal = calculateInvoiceItemsSubtotal(items);
+
+    return (
+      <div className="rounded-lg border border-gray-200 bg-white p-4">
+        <div className="mb-3 flex items-center justify-between gap-3 border-b border-gray-200 pb-2">
+          <div className="text-sm font-semibold text-gray-800">
+            {title.toUpperCase()}
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => handleAddItem(addType)}
+            className="gap-2"
+          >
+            <Plus className="h-4 w-4" />
+            {addLabel}
+          </Button>
+        </div>
+
+        {items.length > 0 ? (
+          <div className="space-y-3">
+            <div className="grid grid-cols-12 gap-3 rounded bg-gray-100 p-3 text-sm font-semibold text-gray-700">
+              <div className="col-span-5">{t("description")}</div>
+              <div className="col-span-2 whitespace-nowrap">
+                {t("quantityShort")}
+              </div>
+              <div className="col-span-2 whitespace-nowrap">{t("unitPrice")}</div>
+              <div className="col-span-2 whitespace-nowrap">{t("amount")}</div>
+              <div className="col-span-1" />
+            </div>
+
+            {items.map((item) => (
+              <div
+                key={item.id}
+                className="grid grid-cols-12 items-center gap-3 rounded border border-gray-200 p-3"
+              >
+                <div className="col-span-5">
+                  {item.type === "product" ? (
+                    <div className="space-y-2">
+                      <select
+                        value={item.product_id || ""}
+                        onChange={(event) =>
+                          handleItemChange(
+                            item.id,
+                            "product_id",
+                            event.target.value
+                              ? Number(event.target.value)
+                              : undefined,
+                          )
+                        }
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      >
+                        <option value="">{t("selectInventoryProduct")}</option>
+                        {products.map((product) => (
+                          <option key={product.id} value={product.id}>
+                            {product.name} - {t("availableQuantity")}:{" "}
+                            {product.quantity_in_stock}
+                          </option>
+                        ))}
+                      </select>
+                      <textarea
+                        value={item.description}
+                        onChange={(event) =>
+                          handleItemChange(
+                            item.id,
+                            "description",
+                            event.target.value,
+                          )
+                        }
+                        rows={3}
+                        spellCheck
+                        placeholder={t("itemDescription")}
+                        className="w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm leading-5"
+                      />
+                    </div>
+                  ) : (
+                    <textarea
+                      value={item.description}
+                      onChange={(event) =>
+                        handleItemChange(
+                          item.id,
+                          "description",
+                          event.target.value,
+                        )
+                      }
+                      rows={3}
+                      spellCheck
+                      placeholder={t("laborDescription")}
+                      className="w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm leading-5"
+                    />
+                  )}
+                </div>
+                <div className="col-span-2">
+                  <Input
+                    type="number"
+                    min="0"
+                    step="1"
+                    value={item.quantity}
+                    onChange={(event) =>
+                      handleItemChange(
+                        item.id,
+                        "quantity",
+                        Number(event.target.value) || 0,
+                      )
+                    }
+                    className="text-sm"
+                  />
+                </div>
+                <div className="col-span-2">
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={item.unit_price}
+                    placeholder="0.00"
+                    onChange={(event) =>
+                      handleItemChange(
+                        item.id,
+                        "unit_price",
+                        Number(event.target.value) || "",
+                      )
+                    }
+                    className="text-sm"
+                  />
+                </div>
+                <div className="col-span-2 text-right font-semibold">
+                  {formatCurrency(item.amount, invoiceCurrency)}
+                </div>
+                <div className="col-span-1 flex justify-end">
+                  <button
+                    onClick={() => handleRemoveItem(item.id)}
+                    className="text-red-500 hover:text-red-700"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+            ))}
+
+            <div className="flex justify-end border-t border-gray-200 pt-3">
+              <div className="flex w-64 max-w-full items-center justify-between gap-6 text-sm font-semibold text-gray-800">
+                <span>{subtotalLabel}:</span>
+                <span>{formatCurrency(sectionSubtotal, invoiceCurrency)}</span>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="rounded bg-gray-50 p-6 text-center text-gray-500">
+            {emptyLabel}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   if (loading) {
     return (
@@ -1184,129 +1330,158 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
                 </div>
               </div>
 
-              <div className="mt-4 grid gap-8 lg:grid-cols-[1.5fr,1fr]">
-                <div className="grid gap-6 lg:grid-cols-2">
-                  <div>
-                    <div className="mb-3 border-b-2 border-gray-300 pb-2 text-sm font-semibold text-gray-800">
-                      {t("billTo").toUpperCase()}
-                    </div>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div className="sm:col-span-2">
-                        <label className="text-xs font-semibold text-gray-600">
-                          {t("customerName")} *
-                        </label>
-                        <Input
-                          value={invoice.customer_name}
-                          onChange={(event) =>
-                            handleInvoiceFieldChange(
-                              "customer_name",
-                              event.target.value,
-                            )
-                          }
-                          className="mt-1"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-semibold text-gray-600">
-                          {t("phone")}
-                        </label>
-                        <PhoneInput
-                          value={invoice.customer_phone}
-                          onValueChange={(value) =>
-                            handleInvoiceFieldChange("customer_phone", value)
-                          }
-                          className="mt-1"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-semibold text-gray-600">
-                          {t("email")}
-                        </label>
-                        <Input
-                          type="email"
-                          value={invoice.customer_email}
-                          onChange={(event) =>
-                            handleInvoiceFieldChange(
-                              "customer_email",
-                              event.target.value,
-                            )
-                          }
-                          className="mt-1"
-                        />
-                      </div>
-                    </div>
+              <div className="mt-4 grid gap-6 lg:grid-cols-2">
+                <div>
+                  <div className="mb-3 border-b-2 border-gray-300 pb-2 text-sm font-semibold text-gray-800">
+                    {t("billTo").toUpperCase()}
                   </div>
-
-                  <div>
-                    <div className="mb-3 border-b-2 border-gray-300 pb-2 text-sm font-semibold text-gray-800">
-                      {t("vehicleInformation").toUpperCase()}
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="sm:col-span-2">
+                      <label className="text-xs font-semibold text-gray-600">
+                        {t("customerName")} *
+                      </label>
+                      <Input
+                        value={invoice.customer_name}
+                        spellCheck
+                        onChange={(event) =>
+                          handleInvoiceFieldChange(
+                            "customer_name",
+                            event.target.value,
+                          )
+                        }
+                        className="mt-1"
+                      />
                     </div>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      <div>
-                        <label className="text-xs font-semibold text-gray-600">
-                          {t("vehicleMake")}
-                        </label>
-                        <Input
-                          value={invoice.vehicle_make}
-                          onChange={(event) =>
-                            handleInvoiceFieldChange(
-                              "vehicle_make",
-                              event.target.value,
-                            )
-                          }
-                          className="mt-1"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-semibold text-gray-600">
-                          {t("vehicleModel")}
-                        </label>
-                        <Input
-                          value={invoice.vehicle_model}
-                          onChange={(event) =>
-                            handleInvoiceFieldChange(
-                              "vehicle_model",
-                              event.target.value,
-                            )
-                          }
-                          className="mt-1"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-semibold text-gray-600">
-                          {t("vehicleYear")}
-                        </label>
-                        <Input
-                          value={invoice.vehicle_year}
-                          onChange={(event) =>
-                            handleInvoiceFieldChange(
-                              "vehicle_year",
-                              event.target.value,
-                            )
-                          }
-                          className="mt-1"
-                        />
-                      </div>
-                      <div>
-                        <label className="text-xs font-semibold text-gray-600">
-                          {t("licensePlate")}
-                        </label>
-                        <Input
-                          value={invoice.license_plate}
-                          onChange={(event) =>
-                            handleInvoiceFieldChange(
-                              "license_plate",
-                              event.target.value?.toUpperCase(),
-                            )
-                          }
-                          className="mt-1"
-                        />
-                      </div>
+                    <div>
+                      <label className="text-xs font-semibold text-gray-600">
+                        {t("phone")}
+                      </label>
+                      <PhoneInput
+                        value={invoice.customer_phone}
+                        onValueChange={(value) =>
+                          handleInvoiceFieldChange("customer_phone", value)
+                        }
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-gray-600">
+                        {t("email")}
+                      </label>
+                      <Input
+                        type="email"
+                        value={invoice.customer_email}
+                        spellCheck
+                        onChange={(event) =>
+                          handleInvoiceFieldChange(
+                            "customer_email",
+                            event.target.value,
+                          )
+                        }
+                        className="mt-1"
+                      />
                     </div>
                   </div>
                 </div>
 
-                <div className="rounded-lg border border-gray-200 bg-gray-50 p-6">
+                <div>
+                  <div className="mb-3 border-b-2 border-gray-300 pb-2 text-sm font-semibold text-gray-800">
+                    {t("vehicleInformation").toUpperCase()}
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className="text-xs font-semibold text-gray-600">
+                        {t("vehicleMake")}
+                      </label>
+                      <Input
+                        value={invoice.vehicle_make}
+                        spellCheck
+                        onChange={(event) =>
+                          handleInvoiceFieldChange(
+                            "vehicle_make",
+                            event.target.value,
+                          )
+                        }
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-gray-600">
+                        {t("vehicleModel")}
+                      </label>
+                      <Input
+                        value={invoice.vehicle_model}
+                        spellCheck
+                        onChange={(event) =>
+                          handleInvoiceFieldChange(
+                            "vehicle_model",
+                            event.target.value,
+                          )
+                        }
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-gray-600">
+                        {t("vehicleYear")}
+                      </label>
+                      <Input
+                        value={invoice.vehicle_year}
+                        onChange={(event) =>
+                          handleInvoiceFieldChange(
+                            "vehicle_year",
+                            event.target.value,
+                          )
+                        }
+                        className="mt-1"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-gray-600">
+                        {t("licensePlate")}
+                      </label>
+                      <Input
+                        value={invoice.license_plate}
+                        onChange={(event) =>
+                          handleInvoiceFieldChange(
+                            "license_plate",
+                            event.target.value?.toUpperCase(),
+                          )
+                        }
+                        className="mt-1"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <div className="mb-3 border-b-2 border-gray-300 pb-2 text-sm font-semibold text-gray-800">
+                  {t("itemsServices").toUpperCase()}
+                </div>
+
+                <div className="space-y-4">
+                  {renderItemSection({
+                    title: t("labor"),
+                    items: laborItems,
+                    emptyLabel: t("noLaborAddedYet"),
+                    subtotalLabel: t("laborSubtotal"),
+                    addLabel: t("addLabor"),
+                    addType: "labor",
+                  })}
+                  {renderItemSection({
+                    title: t("partsMaterials"),
+                    items: partsMaterialItems,
+                    emptyLabel: t("noPartsMaterialsAddedYet"),
+                    subtotalLabel: t("partsMaterialsSubtotal"),
+                    addLabel: t("addProduct"),
+                    addType: "product",
+                  })}
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <div className="w-full max-w-md rounded-lg border border-gray-200 bg-gray-50 p-6">
                   <div className="mb-4 text-sm font-semibold text-gray-800">
                     {t("invoiceSummary").toUpperCase()}
                   </div>
@@ -1314,10 +1489,7 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">{t("subtotal")}:</span>
                       <span className="font-semibold">
-                        {formatCurrency(
-                          invoice.subtotal,
-                          businessSettings?.currency || "PHP",
-                        )}
+                        {formatCurrency(invoice.subtotal, invoiceCurrency)}
                       </span>
                     </div>
                     {Number(invoice.tax_rate) > 0 && (
@@ -1326,23 +1498,17 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
                           {t("taxLabel")} ({invoice.tax_rate}%):
                         </span>
                         <span className="font-semibold">
-                          {formatCurrency(
-                            invoice.tax_amount,
-                            businessSettings?.currency || "PHP",
-                          )}
+                          {formatCurrency(invoice.tax_amount, invoiceCurrency)}
                         </span>
                       </div>
                     )}
                     <div className="border-t-2 border-gray-300 pt-3">
                       <div className="flex justify-between">
                         <span className="font-bold text-gray-800">
-                          {t("total").toUpperCase()}:
+                          {t("totalAmount").toUpperCase()}:
                         </span>
                         <span className="text-xl font-bold text-green-600">
-                          {formatCurrency(
-                            invoice.total,
-                            businessSettings?.currency || "PHP",
-                          )}
+                          {formatCurrency(invoice.total, invoiceCurrency)}
                         </span>
                       </div>
                     </div>
@@ -1384,146 +1550,12 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
               </div>
 
               <div>
-                <div className="mb-3 border-b-2 border-gray-300 pb-2 text-sm font-semibold text-gray-800">
-                  {t("itemsServices").toUpperCase()}
-                </div>
-
-                {invoice.items.length > 0 ? (
-                  <div className="mb-4 space-y-3">
-                    <div className="grid grid-cols-12 gap-3 rounded bg-gray-100 p-3 text-sm font-semibold text-gray-700">
-                      <div className="col-span-5">{t("description")}</div>
-                      <div className="col-span-2 whitespace-nowrap">{t("quantityShort")}</div>
-                      <div className="col-span-2 whitespace-nowrap">{t("unitPrice")}</div>
-                      <div className="col-span-2 whitespace-nowrap">{t("amount")}</div>
-                      <div className="col-span-1" />
-                    </div>
-
-                    {invoice.items.map((item) => (
-                      <div
-                        key={item.id}
-                        className="grid grid-cols-12 items-center gap-3 rounded border border-gray-200 p-3"
-                      >
-                        <div className="col-span-5">
-                          {item.type === "product" ? (
-                            <select
-                              value={item.product_id || ""}
-                              onChange={(event) =>
-                                handleItemChange(
-                                  item.id,
-                                  "product_id",
-                                  event.target.value
-                                    ? Number(event.target.value)
-                                    : undefined,
-                                )
-                              }
-                              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                            >
-                              <option value="">{t("selectProduct")}</option>
-                              {products.map((product) => (
-                                <option key={product.id} value={product.id}>
-                                  {product.name} - {t("availableQuantity")}: {product.quantity_in_stock}
-                                </option>
-                              ))}
-                            </select>
-                          ) : (
-                            <Input
-                              value={item.description}
-                              onChange={(event) =>
-                                handleItemChange(
-                                  item.id,
-                                  "description",
-                                  event.target.value,
-                                )
-                              }
-                              placeholder={t("laborDescription")}
-                              className="text-sm"
-                            />
-                          )}
-                        </div>
-                        <div className="col-span-2">
-                          <Input
-                            type="number"
-                            min="0"
-                            step="1"
-                            value={item.quantity}
-                            onChange={(event) =>
-                              handleItemChange(
-                                item.id,
-                                "quantity",
-                                Number(event.target.value) || 0,
-                              )
-                            }
-                            className="text-sm"
-                          />
-                        </div>
-                        <div className="col-span-2">
-                          <Input
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            value={item.unit_price}
-                            placeholder="0.00"
-                            onChange={(event) =>
-                              handleItemChange(
-                                item.id,
-                                "unit_price",
-                                Number(event.target.value) || "",
-                              )
-                            }
-                            className="text-sm"
-                          />
-                        </div>
-                        <div className="col-span-2 text-right font-semibold">
-                          {formatCurrency(
-                            item.amount,
-                            businessSettings?.currency || "PHP",
-                          )}
-                        </div>
-                        <div className="col-span-1 flex justify-end">
-                          <button
-                            onClick={() => handleRemoveItem(item.id)}
-                            className="text-red-500 hover:text-red-700"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="rounded bg-gray-50 p-6 text-center text-gray-500">
-                    {t("noItemsAddedYet")}
-                  </div>
-                )}
-
-                <div className="mt-4 flex gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => handleAddItem("product")}
-                    className="flex-1 gap-2"
-                  >
-                    <Plus className="h-4 w-4" />
-                    {t("addProduct")}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => handleAddItem("labor")}
-                    className="flex-1 gap-2"
-                  >
-                    <Plus className="h-4 w-4" />
-                    {t("addLabor")}
-                  </Button>
-                </div>
-              </div>
-
-              <div>
                 <label className="text-xs font-semibold text-gray-600">
                   {t("notes")}
                 </label>
                 <textarea
                   value={invoice.notes}
+                  spellCheck
                   onChange={(event) =>
                     updateInvoiceState({ notes: event.target.value })
                   }

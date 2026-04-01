@@ -44,7 +44,7 @@ const LanguageToggle: React.FC<LanguageToggleProps> = ({
               aria-pressed={isActive}
               title={option.label}
             >
-              {option.flag} {option.shortLabel}
+              {option.label}
             </button>
           );
         })}

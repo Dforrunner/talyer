@@ -811,7 +811,7 @@ ipcMain.handle('pdf:generate', async (event, invoiceData, businessData) => {
     
     return new Promise((resolve, reject) => {
       const doc = new PDFDocument({
-        margin: 50,
+        margin: 32,
         size: 'A4'
       });
 
@@ -824,6 +824,19 @@ ipcMain.handle('pdf:generate', async (event, invoiceData, businessData) => {
       const lightGray = '#F5F5F5';
       const labels = invoiceData.labels || {};
       const invoiceLocale = invoiceData.invoice_language === 'tl' ? 'fil-PH' : 'en-PH';
+      const getItemDescription = (item) =>
+        String(item?.description || item?.product_name || '');
+      const shouldRenderItem = (item) => {
+        const description = getItemDescription(item).trim();
+        const unitPrice = Number(item?.unit_price) || 0;
+        const amount = Number(item?.amount) || 0;
+        return Boolean(description || unitPrice > 0 || amount > 0);
+      };
+      const outputItems = (invoiceData.items || []).filter(shouldRenderItem);
+      const laborItems = outputItems.filter((item) => item?.type === 'labor');
+      const partsMaterialItems = outputItems.filter((item) => item?.type !== 'labor');
+      const calculateItemsSubtotal = (items) =>
+        items.reduce((sum, item) => sum + (Number(item?.amount) || 0), 0);
       const appFontPath = path.join(
         app.getAppPath(),
         'node_modules/.pnpm/next@16.2.1_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/next/dist/compiled/@vercel/og/Geist-Regular.ttf',
@@ -836,58 +849,64 @@ ipcMain.handle('pdf:generate', async (event, invoiceData, businessData) => {
       }
 
       // Header with logo and business info
-      let currentY = 40;
+      let currentY = 24;
+      let businessBlockY = currentY;
+      const businessNameX = businessData.logo_path ? 106 : 32;
 
       if (businessData.logo_path && fs.existsSync(businessData.logo_path)) {
         try {
-          doc.image(businessData.logo_path, 40, currentY, { width: 72 });
-          currentY += 82;
+          doc.image(businessData.logo_path, 32, currentY, { width: 60, height: 36, fit: [60, 36] });
         } catch (e) {
-          currentY += 20;
+          // Ignore logo rendering failures and keep the text block aligned left.
         }
       }
 
       // Business name and info
-      doc.fontSize(22).font(titleFont).fillColor(primaryColor);
-      doc.text(businessData.business_name, 40, currentY);
-      currentY += 30;
+      doc.fontSize(16).font(titleFont).fillColor(primaryColor);
+      doc.text(businessData.business_name, businessNameX, businessBlockY + 2, { width: 190, lineGap: 0 });
 
-      doc.fontSize(9).font(textFont).fillColor(textColor);
+      currentY = businessBlockY + 22;
+
+      doc.fontSize(8).font(textFont).fillColor(textColor);
       if (businessData.address) {
-        doc.text(businessData.address, 40, currentY);
-        currentY += 13;
+        doc.text(businessData.address, 32, currentY, { width: 260, lineGap: 0 });
+        currentY += 9;
       }
       if (businessData.city || businessData.postal_code) {
-        doc.text(`${businessData.city || ''} ${businessData.postal_code || ''}`.trim(), 40, currentY);
-        currentY += 13;
+        doc.text(`${businessData.city || ''} ${businessData.postal_code || ''}`.trim(), 32, currentY, {
+          width: 260,
+          lineGap: 0,
+        });
+        currentY += 9;
       }
       if (businessData.phone) {
-        doc.text(`${labels.phone || 'Phone'}: ${businessData.phone}`, 40, currentY);
-        currentY += 11;
+        doc.text(`${labels.phone || 'Phone'}: ${businessData.phone}`, 32, currentY, { width: 260, lineGap: 0 });
+        currentY += 8;
       }
       if (businessData.email) {
-        doc.text(`${labels.email || 'Email'}: ${businessData.email}`, 40, currentY);
-        currentY += 11;
+        doc.text(`${labels.email || 'Email'}: ${businessData.email}`, 32, currentY, { width: 260, lineGap: 0 });
+        currentY += 8;
       }
       if (businessData.tax_id) {
-        doc.text(`${labels.taxId || 'Tax ID'}: ${businessData.tax_id}`, 40, currentY);
-        currentY += 11;
+        doc.text(`${labels.taxId || 'Tax ID'}: ${businessData.tax_id}`, 32, currentY, { width: 260, lineGap: 0 });
+        currentY += 8;
       }
 
       // Invoice header on the right
-      doc.fontSize(18).font(titleFont).fillColor(primaryColor);
-      doc.text(labels.invoiceLabel || 'INVOICE', 330, 40, { width: 220, align: 'right' });
+      doc.fontSize(15).font(titleFont).fillColor(primaryColor);
+      doc.text(labels.invoiceLabel || 'INVOICE', 332, 26, { width: 210, align: 'right', lineGap: 0 });
 
-      doc.fontSize(9).font(textFont);
-      doc.text(`${labels.invoiceNumber || 'Invoice #'}: ${invoiceData.invoice_number}`, 330, 72, {
-        width: 220,
+      doc.fontSize(8).font(textFont);
+      doc.text(`${labels.invoiceNumber || 'Invoice #'}: ${invoiceData.invoice_number}`, 332, 48, {
+        width: 210,
         align: 'right',
+        lineGap: 0,
       });
       doc.text(
         `${labels.date || 'Date'}: ${new Date(invoiceData.invoice_date).toLocaleDateString(invoiceLocale)}`,
-        330,
-        88,
-        { width: 220, align: 'right' },
+        332,
+        60,
+        { width: 210, align: 'right', lineGap: 0 },
       );
       doc.text(
         `${labels.dueDate || 'Due Date'}: ${
@@ -895,33 +914,37 @@ ipcMain.handle('pdf:generate', async (event, invoiceData, businessData) => {
             ? labels.paymentDueUponReceipt || 'Payment Due Upon Receipt'
             : new Date(invoiceData.due_date).toLocaleDateString(invoiceLocale)
         }`,
-        330,
-        104,
-        { width: 220, align: 'right' },
+        332,
+        72,
+        { width: 210, align: 'right', lineGap: 0 },
       );
 
-      currentY = Math.max(currentY, 142);
-
-      currentY += 12;
+      currentY = Math.max(currentY, 92) + 4;
 
       const customerStartY = currentY;
       let customerY = customerStartY;
-      doc.fontSize(10).font(titleFont).fillColor(primaryColor);
-      doc.text(`${labels.billTo || 'BILL TO'}:`, 40, customerY);
-      customerY += 16;
+      doc.fontSize(8.5).font(titleFont).fillColor(primaryColor);
+      doc.text(`${labels.billTo || 'BILL TO'}:`, 32, customerY);
+      customerY += 11;
 
-      doc.fontSize(10).font(titleFont).fillColor(textColor);
-      doc.text(invoiceData.customer_name, 40, customerY);
-      customerY += 14;
+      doc.fontSize(9).font(titleFont).fillColor(textColor);
+      doc.text(invoiceData.customer_name, 32, customerY, { width: 240, lineGap: 0 });
+      customerY += 10;
 
-      doc.fontSize(9).font(textFont).fillColor(textColor);
+      doc.fontSize(8).font(textFont).fillColor(textColor);
       if (invoiceData.customer_phone) {
-        doc.text(`${labels.phone || 'Phone'}: ${invoiceData.customer_phone}`, 40, customerY);
-        customerY += 11;
+        doc.text(`${labels.phone || 'Phone'}: ${invoiceData.customer_phone}`, 32, customerY, {
+          width: 240,
+          lineGap: 0,
+        });
+        customerY += 8;
       }
       if (invoiceData.customer_email) {
-        doc.text(`${labels.email || 'Email'}: ${invoiceData.customer_email}`, 40, customerY);
-        customerY += 11;
+        doc.text(`${labels.email || 'Email'}: ${invoiceData.customer_email}`, 32, customerY, {
+          width: 240,
+          lineGap: 0,
+        });
+        customerY += 8;
       }
 
       const vehicleLines = [
@@ -941,120 +964,189 @@ ipcMain.handle('pdf:generate', async (event, invoiceData, businessData) => {
 
       let vehicleY = customerStartY;
       if (vehicleLines.length > 0) {
-        doc.fontSize(10).font(titleFont).fillColor(primaryColor);
-        doc.text(`${labels.vehicleInformation || 'Vehicle Information'}:`, 300, vehicleY, {
-          width: 250,
+        doc.fontSize(8.5).font(titleFont).fillColor(primaryColor);
+        doc.text(`${labels.vehicleInformation || 'Vehicle Information'}:`, 302, vehicleY, {
+          width: 240,
           align: 'left',
         });
-        vehicleY += 16;
+        vehicleY += 11;
 
-        doc.fontSize(9).font(textFont).fillColor(textColor);
+        doc.fontSize(8).font(textFont).fillColor(textColor);
         vehicleLines.forEach((line) => {
-          doc.text(line, 300, vehicleY, { width: 250 });
-          vehicleY += 11;
+          doc.text(line, 302, vehicleY, { width: 240, lineGap: 0 });
+          vehicleY += 8;
         });
       }
 
-      currentY = Math.max(customerY, vehicleY) + 18;
+      currentY = Math.max(customerY, vehicleY) + 8;
 
-      // Items table header
-      const tableTop = currentY;
-      const col1 = 40;
-      const col2 = 326;
-      const col3 = 388;
-      const col4 = 474;
-
-      doc.rect(col1 - 4, tableTop - 4, 514, 20).fill(lightGray);
-
-      doc.fontSize(8.5).font(titleFont).fillColor(primaryColor);
-      doc.text(labels.description || 'Description', col1, tableTop, { width: 250 });
-      doc.text(labels.quantityShort || 'Qty', col2, tableTop, { width: 48, align: 'center' });
-      doc.text(labels.unitPrice || 'Unit Price', col3, tableTop, { width: 72, align: 'right' });
-      doc.text(labels.amount || 'Amount', col4, tableTop, { width: 62, align: 'right' });
-
-      currentY = tableTop + 22;
-
-      // Items
-      doc.fontSize(9).font(textFont).fillColor(textColor);
-
-      invoiceData.items.forEach((item) => {
-        if (currentY > 700) {
-          doc.addPage();
-          currentY = 40;
+      const col1 = 32;
+      const col2 = 322;
+      const col3 = 386;
+      const col4 = 470;
+      const ensurePageSpace = (neededHeight = 0) => {
+        if (currentY + neededHeight <= 790) {
+          return;
         }
 
-        const itemDescription = item.description || '';
-        const itemHeight = doc.heightOfString(itemDescription, { width: 250 });
-        const rowHeight = Math.max(14, itemHeight);
+        doc.addPage({ margin: 32, size: 'A4' });
+        currentY = 24;
+      };
+      const drawTableHeader = () => {
+        doc.rect(col1 - 3, currentY - 2, 510, 13).fill(lightGray);
 
-        doc.text(itemDescription, col1, currentY, { width: 250 });
-        doc.text(item.quantity.toString(), col2, currentY, { width: 48, align: 'center' });
-        doc.text(formatCurrency(item.unit_price, businessData.currency, invoiceLocale), col3, currentY, {
-          width: 72,
-          align: 'right',
-        });
-        doc.text(formatCurrency(item.amount, businessData.currency, invoiceLocale), col4, currentY, {
-          width: 62,
-          align: 'right',
-        });
+        doc.fontSize(7).font(titleFont).fillColor(primaryColor);
+        doc.text(labels.description || 'Description', col1, currentY, { width: 250, lineGap: 0 });
+        doc.text(labels.quantityShort || 'Qty', col2, currentY, { width: 48, align: 'center' });
+        doc.text(labels.unitPrice || 'Unit Price', col3, currentY, { width: 72, align: 'right' });
+        doc.text(labels.amount || 'Amount', col4, currentY, { width: 62, align: 'right' });
 
-        currentY += rowHeight + 8;
-      });
+        currentY += 14;
+      };
+      const drawSectionTable = (title, items, emptyLabel, subtotalLabel) => {
+        ensurePageSpace(30);
 
-      currentY += 6;
+        doc.fontSize(8).font(titleFont).fillColor(primaryColor);
+        doc.text(String(title || '').toUpperCase(), 32, currentY);
+        currentY += 9;
+        const tableBoxTop = currentY - 2;
+
+        drawTableHeader();
+
+        doc.fontSize(8).font(textFont).fillColor(textColor);
+
+        if (items.length === 0) {
+          ensurePageSpace(14);
+          doc.text(emptyLabel, col1, currentY, {
+            width: 504,
+            align: 'center',
+          });
+          currentY += 14;
+        } else {
+          items.forEach((item) => {
+            const itemDescription = getItemDescription(item);
+            const itemHeight = doc.heightOfString(itemDescription, { width: 250, lineGap: 0 });
+            const rowHeight = Math.max(9, itemHeight);
+
+            if (currentY + rowHeight + 14 > 790) {
+              doc.addPage({ margin: 32, size: 'A4' });
+              currentY = 24;
+              doc.fontSize(8).font(titleFont).fillColor(primaryColor);
+              doc.text(String(title || '').toUpperCase(), 32, currentY);
+              currentY += 9;
+              drawTableHeader();
+              doc.fontSize(8).font(textFont).fillColor(textColor);
+            }
+
+            doc.text(itemDescription, col1, currentY, { width: 250, lineGap: 0 });
+            doc.text(String(item.quantity ?? ''), col2, currentY, {
+              width: 48,
+              align: 'center',
+            });
+            doc.text(formatCurrency(item.unit_price, businessData.currency, invoiceLocale), col3, currentY, {
+              width: 72,
+              align: 'right',
+            });
+            doc.text(formatCurrency(item.amount, businessData.currency, invoiceLocale), col4, currentY, {
+              width: 62,
+              align: 'right',
+            });
+
+            currentY += rowHeight + 2;
+          });
+        }
+
+        ensurePageSpace(14);
+        currentY += 5;
+
+        doc.fontSize(8).font(titleFont).fillColor(primaryColor);
+        doc.text(`${subtotalLabel}:`, 336, currentY);
+        doc.text(
+          formatCurrency(calculateItemsSubtotal(items), businessData.currency, invoiceLocale),
+          448,
+          currentY,
+          {
+            width: 84,
+            align: 'right',
+          },
+        );
+        currentY += 11;
+
+        doc
+          .roundedRect(col1 - 3, tableBoxTop, 510, currentY - tableBoxTop + 1, 6)
+          .lineWidth(1)
+          .strokeColor('#d8dee6')
+          .stroke();
+      };
+
+      drawSectionTable(
+        labels.labor || 'Labor',
+        laborItems,
+        labels.noLaborAddedYet || 'No labor added yet',
+        labels.laborSubtotal || 'Labor Subtotal',
+      );
+      drawSectionTable(
+        labels.partsMaterials || 'Parts & Materials',
+        partsMaterialItems,
+        labels.noPartsMaterialsAddedYet || 'No parts or materials added yet',
+        labels.partsMaterialsSubtotal || 'Parts & Materials Subtotal',
+      );
+
+      currentY += 8;
+      ensurePageSpace(58);
 
       // Total section
       const totalBoxTop = currentY;
-      const totalBoxLeft = 330;
+      const totalBoxLeft = 336;
 
       // Lines for totals
       doc.moveTo(totalBoxLeft, totalBoxTop).lineTo(536, totalBoxTop).stroke();
 
-      currentY = totalBoxTop + 12;
-
-      doc.fontSize(9).font(textFont);
-      doc.text(`${labels.subtotal || 'Subtotal'}:`, totalBoxLeft, currentY);
-      doc.text(formatCurrency(invoiceData.subtotal, businessData.currency, invoiceLocale), 464, currentY, {
-        width: 72,
-        align: 'right',
-      });
-
-      currentY += 18;
+      currentY = totalBoxTop + 8;
 
       if (invoiceData.tax_rate > 0) {
-        doc.text(`${labels.tax || 'Tax/VAT'} (${invoiceData.tax_rate}%):`, totalBoxLeft, currentY);
-        doc.text(formatCurrency(invoiceData.tax_amount, businessData.currency, invoiceLocale), 464, currentY, {
+        doc.fontSize(8).font(textFont);
+        doc.text(`${labels.subtotal || 'Subtotal'}:`, totalBoxLeft, currentY);
+        doc.text(formatCurrency(invoiceData.subtotal, businessData.currency, invoiceLocale), 448, currentY, {
           width: 72,
           align: 'right',
         });
-        currentY += 18;
+
+        currentY += 13;
+
+        doc.text(`${labels.tax || 'Tax/VAT'} (${invoiceData.tax_rate}%):`, totalBoxLeft, currentY);
+        doc.text(formatCurrency(invoiceData.tax_amount, businessData.currency, invoiceLocale), 448, currentY, {
+          width: 72,
+          align: 'right',
+        });
+        currentY += 13;
       }
 
       // Total line
       doc.moveTo(totalBoxLeft, currentY).lineTo(536, currentY).stroke();
-      currentY += 8;
+      currentY += 5;
 
-      doc.fontSize(12).font(titleFont).fillColor(primaryColor);
-      doc.text(`${labels.total || 'TOTAL'}:`, totalBoxLeft, currentY);
-      doc.text(formatCurrency(invoiceData.total, businessData.currency, invoiceLocale), 452, currentY, {
+      doc.fontSize(10).font(titleFont).fillColor(primaryColor);
+      doc.text(`${labels.totalAmount || labels.total || 'TOTAL'}:`, totalBoxLeft, currentY);
+      doc.text(formatCurrency(invoiceData.total, businessData.currency, invoiceLocale), 448, currentY, {
         width: 84,
         align: 'right',
       });
 
       // Notes section
       if (invoiceData.notes) {
-        currentY += 28;
-        doc.fontSize(9).font(titleFont).fillColor(primaryColor);
-        doc.text(`${labels.notes || 'Notes'}:`, 40, currentY);
-        currentY += 12;
-        doc.fontSize(8.5).font(textFont).fillColor(textColor);
-        doc.text(invoiceData.notes, 40, currentY, { width: 496 });
+        currentY += 18;
+        doc.fontSize(8).font(titleFont).fillColor(primaryColor);
+        doc.text(`${labels.notes || 'Notes'}:`, 32, currentY);
+        currentY += 9;
+        doc.fontSize(8).font(textFont).fillColor(textColor);
+        doc.text(invoiceData.notes, 32, currentY, { width: 504, lineGap: 0 });
       }
 
       // Footer
-      doc.fontSize(8).font(textFont).fillColor('#999999');
-      doc.text(labels.thankYou || 'Thank you for your business!', 40, 776, {
-        width: 515,
+      doc.fontSize(7.5).font(textFont).fillColor('#999999');
+      doc.text(labels.thankYou || 'Thank you for your business!', 32, 804, {
+        width: 504,
         align: 'center',
       });
 

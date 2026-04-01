@@ -1,9 +1,13 @@
 import {
+  calculateInvoiceItemsSubtotal,
   buildVehicleInfoLines,
+  filterInvoiceLineItemsForOutput,
   formatInvoiceCurrency,
   formatInvoiceDate,
+  getInvoiceItemDescription,
   getInvoiceTranslator,
   resolveInvoiceLanguage,
+  splitInvoiceItemsByType,
 } from "@/lib/invoice-utils";
 
 interface BuildInvoicePrintHtmlOptions {
@@ -43,21 +47,81 @@ export function buildInvoicePrintHtml({
 
   const formatMoney = (amount: number | null | undefined) =>
     formatInvoiceCurrency(amount, currency, invoiceLanguage);
+  const outputItems = filterInvoiceLineItemsForOutput(invoice?.items || []);
+  const { laborItems, partsMaterialItems } = splitInvoiceItemsByType(
+    outputItems,
+  );
 
-  const itemRows = (invoice?.items || [])
-    .map((item: any) => {
-      const description = item?.description || item?.product_name || "";
+  const renderItemsTable = (
+    title: string,
+    items: any[],
+    emptyLabel: string,
+    subtotalLabel: string,
+  ) => {
+    const sectionSubtotal = calculateInvoiceItemsSubtotal(items);
+    const itemRows =
+      items.length > 0
+        ? items
+            .map(
+              (item: any) => `
+                <tr>
+                  <td class="cell cell-left">${escapeHtml(
+                    getInvoiceItemDescription(item),
+                  )}</td>
+                  <td class="cell cell-center">${escapeHtml(
+                    item?.quantity ?? "",
+                  )}</td>
+                  <td class="cell cell-right">${escapeHtml(
+                    formatMoney(item?.unit_price),
+                  )}</td>
+                  <td class="cell cell-right cell-strong">${escapeHtml(
+                    formatMoney(item?.amount),
+                  )}</td>
+                </tr>
+              `,
+            )
+            .join("")
+        : `
+            <tr>
+              <td class="cell cell-empty" colspan="4">${escapeHtml(
+                emptyLabel,
+              )}</td>
+            </tr>
+          `;
 
-      return `
-        <tr>
-          <td class="cell cell-left">${escapeHtml(description)}</td>
-          <td class="cell cell-center">${escapeHtml(item?.quantity ?? "")}</td>
-          <td class="cell cell-right">${escapeHtml(formatMoney(item?.unit_price))}</td>
-          <td class="cell cell-right cell-strong">${escapeHtml(formatMoney(item?.amount))}</td>
-        </tr>
-      `;
-    })
-    .join("");
+    return `
+      <div class="table-section">
+        <div class="table-section-title">${escapeHtml(title.toUpperCase())}</div>
+        <div class="table-shell">
+          <table class="table">
+            <thead>
+              <tr class="thead-row">
+                <th class="head-cell head-left">${escapeHtml(
+                  invoiceT("description"),
+                )}</th>
+                <th class="head-cell head-center" style="width:72px">${escapeHtml(
+                  invoiceT("quantityShort"),
+                )}</th>
+                <th class="head-cell head-right" style="width:106px">${escapeHtml(
+                  invoiceT("unitPrice"),
+                )}</th>
+                <th class="head-cell head-right" style="width:112px">${escapeHtml(
+                  invoiceT("amount"),
+                )}</th>
+              </tr>
+            </thead>
+            <tbody>${itemRows}</tbody>
+          </table>
+          <div class="section-subtotal">
+            <div class="section-subtotal-line">
+              <span>${escapeHtml(subtotalLabel)}:</span>
+              <span>${escapeHtml(formatMoney(sectionSubtotal))}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  };
 
   return `<!DOCTYPE html>
 <html lang="${escapeHtml(invoiceLanguage)}">
@@ -68,7 +132,7 @@ export function buildInvoicePrintHtml({
     <style>
       @page {
         size: A4;
-        margin: 12mm;
+        margin: 8mm;
       }
 
       * {
@@ -79,7 +143,7 @@ export function buildInvoicePrintHtml({
         margin: 0;
         font-family: Arial, sans-serif;
         color: #333;
-        line-height: 1.5;
+        line-height: 1.25;
         background: #fff;
       }
 
@@ -89,8 +153,8 @@ export function buildInvoicePrintHtml({
       }
 
       .header {
-        margin-bottom: 20px;
-        padding-bottom: 20px;
+        margin-bottom: 8px;
+        padding-bottom: 8px;
         border-bottom: 2px solid #2c3e50;
       }
 
@@ -98,27 +162,35 @@ export function buildInvoicePrintHtml({
         display: flex;
         justify-content: space-between;
         align-items: flex-start;
-        gap: 24px;
+        gap: 14px;
+      }
+
+      .business-head {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        margin-bottom: 4px;
       }
 
       .business-name {
-        font-size: 28px;
+        font-size: 20px;
         font-weight: 700;
         color: #2c3e50;
-        margin-bottom: 5px;
+        line-height: 1.1;
       }
 
       .business-meta {
-        font-size: 12px;
+        font-size: 10px;
         color: #666;
-        line-height: 1.6;
+        line-height: 1.3;
       }
 
       .logo {
         display: block;
-        max-width: 120px;
-        max-height: 80px;
-        margin-bottom: 10px;
+        max-width: 68px;
+        max-height: 42px;
+        object-fit: contain;
+        flex-shrink: 0;
       }
 
       .doc-meta {
@@ -126,47 +198,66 @@ export function buildInvoicePrintHtml({
       }
 
       .doc-title {
-        font-size: 32px;
+        font-size: 26px;
         font-weight: 700;
         color: #2c3e50;
-        margin-bottom: 10px;
+        margin-bottom: 4px;
       }
 
       .doc-line {
-        font-size: 13px;
-        margin-bottom: 4px;
+        font-size: 11px;
+        margin-bottom: 2px;
       }
 
       .info-grid {
         display: grid;
         grid-template-columns: ${hasVehicleInfo ? "1fr 1fr" : "1fr"};
-        gap: 20px;
-        margin-top: 14px;
-        margin-bottom: 24px;
+        gap: 12px;
+        margin-top: 6px;
+        margin-bottom: 10px;
       }
 
       .section-label {
-        font-size: 12px;
+        font-size: 10px;
         font-weight: 700;
         color: #2c3e50;
-        margin-bottom: 8px;
-      }
-
-      .customer-name {
-        font-size: 15px;
-        font-weight: 700;
         margin-bottom: 4px;
       }
 
+      .customer-name {
+        font-size: 13px;
+        font-weight: 700;
+        margin-bottom: 2px;
+      }
+
       .muted {
-        font-size: 12px;
+        font-size: 10px;
         color: #666;
+        line-height: 1.25;
       }
 
       .table {
         width: 100%;
-        margin-bottom: 20px;
+        margin-bottom: 6px;
         border-collapse: collapse;
+      }
+
+      .table-section {
+        margin-bottom: 10px;
+      }
+
+      .table-shell {
+        border: 1px solid #d8dee6;
+        border-radius: 6px;
+        overflow: hidden;
+        padding: 0 6px 5px;
+      }
+
+      .table-section-title {
+        font-size: 10px;
+        font-weight: 700;
+        color: #2c3e50;
+        margin-bottom: 4px;
       }
 
       .thead-row {
@@ -175,19 +266,25 @@ export function buildInvoicePrintHtml({
       }
 
       .head-cell {
-        padding: 10px 8px;
-        font-size: 10px;
+        padding: 4px 6px;
+        font-size: 8px;
         font-weight: 700;
         white-space: nowrap;
         border-bottom: 2px solid #2c3e50;
       }
 
       .cell {
-        padding: 10px 8px;
+        padding: 4px 6px;
         border-bottom: 1px solid #ddd;
       }
 
-      .cell-left,
+      .cell-left {
+        text-align: left;
+        white-space: pre-wrap;
+        overflow-wrap: anywhere;
+        line-height: 1.2;
+      }
+
       .head-left {
         text-align: left;
       }
@@ -206,54 +303,77 @@ export function buildInvoicePrintHtml({
         font-weight: 700;
       }
 
-      .summary {
-        width: 280px;
+      .cell-empty {
+        text-align: center;
+        color: #666;
+        font-style: italic;
+      }
+
+      .section-subtotal {
+        width: 240px;
         margin-left: auto;
-        margin-bottom: 20px;
+        padding-top: 5px;
+      }
+
+      .section-subtotal-line {
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        font-weight: 700;
+        color: #2c3e50;
+      }
+
+      .summary {
+        width: 240px;
+        margin-left: auto;
+        margin-top: 10px;
+        margin-bottom: 10px;
       }
 
       .summary-inner {
         border-top: 1px solid #ddd;
-        padding-top: 10px;
-        margin-bottom: 8px;
+        padding-top: 5px;
+        margin-bottom: 6px;
       }
 
       .summary-line {
         display: flex;
         justify-content: space-between;
         gap: 16px;
-        margin-bottom: 8px;
+        margin-bottom: 4px;
+        font-size: 11px;
       }
 
       .summary-total {
         display: flex;
         justify-content: space-between;
         gap: 16px;
-        padding-top: 10px;
+        padding-top: 6px;
         border-top: 2px solid #2c3e50;
-        font-size: 18px;
+        font-size: 15px;
         font-weight: 700;
         color: #2c3e50;
       }
 
       .notes {
-        margin-top: 20px;
-        padding-top: 20px;
+        margin-top: 10px;
+        padding-top: 10px;
         border-top: 1px solid #ddd;
       }
 
       .notes-body {
-        font-size: 12px;
+        font-size: 10px;
         color: #666;
         white-space: pre-wrap;
+        line-height: 1.25;
       }
 
       .footer {
-        margin-top: 30px;
-        padding-top: 20px;
+        margin-top: 14px;
+        padding-top: 10px;
         border-top: 1px solid #ddd;
         text-align: center;
-        font-size: 11px;
+        font-size: 10px;
         color: #999;
       }
 
@@ -269,14 +389,16 @@ export function buildInvoicePrintHtml({
       <div class="header">
         <div class="header-row">
           <div>
-            ${
-              logoSrc
-                ? `<img class="logo" src="${escapeHtml(logoSrc)}" alt="${escapeHtml(logoAlt)}" />`
-                : ""
-            }
-            <div class="business-name">${escapeHtml(
-              businessSettings?.business_name || fallbackBusinessName,
-            )}</div>
+            <div class="business-head">
+              ${
+                logoSrc
+                  ? `<img class="logo" src="${escapeHtml(logoSrc)}" alt="${escapeHtml(logoAlt)}" />`
+                  : ""
+              }
+              <div class="business-name">${escapeHtml(
+                businessSettings?.business_name || fallbackBusinessName,
+              )}</div>
+            </div>
             <div class="business-meta">
               ${renderOptionalLine(businessSettings?.address)}
               ${
@@ -369,35 +491,28 @@ export function buildInvoicePrintHtml({
         }
       </div>
 
-      <table class="table">
-        <thead>
-          <tr class="thead-row">
-            <th class="head-cell head-left">${escapeHtml(
-              invoiceT("description"),
-            )}</th>
-            <th class="head-cell head-center" style="width:72px">${escapeHtml(
-              invoiceT("quantityShort"),
-            )}</th>
-            <th class="head-cell head-right" style="width:106px">${escapeHtml(
-              invoiceT("unitPrice"),
-            )}</th>
-            <th class="head-cell head-right" style="width:112px">${escapeHtml(
-              invoiceT("amount"),
-            )}</th>
-          </tr>
-        </thead>
-        <tbody>${itemRows}</tbody>
-      </table>
+      ${renderItemsTable(
+        invoiceT("labor"),
+        laborItems,
+        invoiceT("noLaborAddedYet"),
+        invoiceT("laborSubtotal"),
+      )}
+      ${renderItemsTable(
+        invoiceT("partsMaterials"),
+        partsMaterialItems,
+        invoiceT("noPartsMaterialsAddedYet"),
+        invoiceT("partsMaterialsSubtotal"),
+      )}
 
       <div class="summary">
         <div class="summary-inner">
-          <div class="summary-line">
-            <span>${escapeHtml(invoiceT("subtotal"))}:</span>
-            <span>${escapeHtml(formatMoney(invoice?.subtotal))}</span>
-          </div>
           ${
             Number(invoice?.tax_rate) > 0
               ? `<div class="summary-line">
+                  <span>${escapeHtml(invoiceT("subtotal"))}:</span>
+                  <span>${escapeHtml(formatMoney(invoice?.subtotal))}</span>
+                </div>
+                <div class="summary-line">
                   <span>${escapeHtml(invoiceT("tax"))} (${escapeHtml(
                     invoice?.tax_rate,
                   )}%):</span>
@@ -406,7 +521,7 @@ export function buildInvoicePrintHtml({
               : ""
           }
           <div class="summary-total">
-            <span>${escapeHtml(invoiceT("total").toUpperCase())}:</span>
+            <span>${escapeHtml(invoiceT("totalAmount").toUpperCase())}:</span>
             <span>${escapeHtml(formatMoney(invoice?.total))}</span>
           </div>
         </div>

@@ -13,6 +13,15 @@ export interface InvoiceVehicleInfo {
   license_plate?: string | null;
 }
 
+export interface InvoiceLineItem {
+  type?: string | null;
+  description?: string | null;
+  product_name?: string | null;
+  quantity?: number | null;
+  unit_price?: number | null;
+  amount?: number | null;
+}
+
 const invoiceTranslationKeys = {
   invoiceLabel: 'invoiceLabel',
   invoiceNumber: 'invoiceNumber',
@@ -27,8 +36,13 @@ const invoiceTranslationKeys = {
   quantityShort: 'quantityShort',
   unitPrice: 'unitPrice',
   amount: 'amount',
+  labor: 'labor',
+  partsMaterials: 'partsMaterials',
+  laborSubtotal: 'laborSubtotal',
+  partsMaterialsSubtotal: 'partsMaterialsSubtotal',
   subtotal: 'subtotal',
   tax: 'tax',
+  totalAmount: 'totalAmount',
   total: 'total',
   notes: 'notes',
   thankYou: 'thankYou',
@@ -37,6 +51,8 @@ const invoiceTranslationKeys = {
   vehicleModel: 'vehicleModel',
   vehicleYear: 'vehicleYear',
   licensePlate: 'licensePlate',
+  noLaborAddedYet: 'noLaborAddedYet',
+  noPartsMaterialsAddedYet: 'noPartsMaterialsAddedYet',
   openInvoice: 'openInvoice',
 } satisfies Record<string, TranslationKey>;
 
@@ -109,6 +125,42 @@ export function buildVehicleInfoLines(
   return fields;
 }
 
+export function getInvoiceItemDescription(item: InvoiceLineItem) {
+  return String(item.description || item.product_name || '');
+}
+
+export function shouldRenderInvoiceLineItem(item: InvoiceLineItem) {
+  const description = getInvoiceItemDescription(item).trim();
+  const unitPrice = Number(item.unit_price) || 0;
+  const amount = Number(item.amount) || 0;
+
+  return Boolean(description || unitPrice > 0 || amount > 0);
+}
+
+export function filterInvoiceLineItemsForOutput(items: InvoiceLineItem[] = []) {
+  return items.filter(shouldRenderInvoiceLineItem);
+}
+
+export function splitInvoiceItemsByType(items: InvoiceLineItem[] = []) {
+  const laborItems: InvoiceLineItem[] = [];
+  const partsMaterialItems: InvoiceLineItem[] = [];
+
+  items.forEach((item) => {
+    if (item.type === 'labor') {
+      laborItems.push(item);
+      return;
+    }
+
+    partsMaterialItems.push(item);
+  });
+
+  return { laborItems, partsMaterialItems };
+}
+
+export function calculateInvoiceItemsSubtotal(items: InvoiceLineItem[] = []) {
+  return items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+}
+
 export function buildInvoicePdfLabels(language?: string | null) {
   const t = getInvoiceTranslator(language);
 
@@ -126,8 +178,13 @@ export function buildInvoicePdfLabels(language?: string | null) {
     quantityShort: t('quantityShort'),
     unitPrice: t('unitPrice'),
     amount: t('amount'),
+    labor: t('labor'),
+    partsMaterials: t('partsMaterials'),
+    laborSubtotal: t('laborSubtotal'),
+    partsMaterialsSubtotal: t('partsMaterialsSubtotal'),
     subtotal: t('subtotal'),
     tax: t('tax'),
+    totalAmount: t('totalAmount'),
     total: t('total'),
     notes: t('notes'),
     thankYou: t('thankYou'),
@@ -136,6 +193,8 @@ export function buildInvoicePdfLabels(language?: string | null) {
     vehicleModel: t('vehicleModel'),
     vehicleYear: t('vehicleYear'),
     licensePlate: t('licensePlate'),
+    noLaborAddedYet: t('noLaborAddedYet'),
+    noPartsMaterialsAddedYet: t('noPartsMaterialsAddedYet'),
     openInvoice: t('openInvoice'),
   };
 }
