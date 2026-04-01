@@ -29,6 +29,16 @@ const escapeHtml = (value: unknown) =>
 const renderOptionalLine = (value?: string | null) =>
   value ? `<div>${escapeHtml(value)}</div>` : "";
 
+const formatBusinessAddress = (businessSettings: {
+  address?: string | null;
+  city?: string | null;
+  postal_code?: string | null;
+} | null | undefined) =>
+  [businessSettings?.address, businessSettings?.city, businessSettings?.postal_code]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean)
+    .join(", ");
+
 export function buildInvoicePrintHtml({
   invoice,
   businessSettings,
@@ -44,6 +54,7 @@ export function buildInvoicePrintHtml({
   const dueDateLabel = invoice?.due_upon_receipt
     ? invoiceT("paymentDueUponReceipt")
     : formatInvoiceDate(invoice?.due_date || invoice?.invoice_date, invoiceLanguage);
+  const businessAddress = formatBusinessAddress(businessSettings);
 
   const formatMoney = (amount: number | null | undefined) =>
     formatInvoiceCurrency(amount, currency, invoiceLanguage);
@@ -187,8 +198,8 @@ export function buildInvoicePrintHtml({
 
       .logo {
         display: block;
-        max-width: 68px;
-        max-height: 42px;
+        max-width: 100px;
+        max-height: 62px;
         object-fit: contain;
         flex-shrink: 0;
       }
@@ -400,16 +411,7 @@ export function buildInvoicePrintHtml({
               )}</div>
             </div>
             <div class="business-meta">
-              ${renderOptionalLine(businessSettings?.address)}
-              ${
-                businessSettings?.city || businessSettings?.postal_code
-                  ? `<div>${escapeHtml(
-                      [businessSettings?.city, businessSettings?.postal_code]
-                        .filter(Boolean)
-                        .join(" "),
-                    )}</div>`
-                  : ""
-              }
+              ${renderOptionalLine(businessAddress)}
               ${
                 businessSettings?.phone
                   ? `<div>${escapeHtml(invoiceT("phone"))}: ${escapeHtml(

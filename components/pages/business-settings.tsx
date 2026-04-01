@@ -31,6 +31,20 @@ interface PendingLogoUpload {
   fileName: string;
 }
 
+const buildSingleLineAddress = ({
+  address,
+  city,
+  postal_code,
+}: {
+  address?: string | null;
+  city?: string | null;
+  postal_code?: string | null;
+}) =>
+  [address, city, postal_code]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean)
+    .join(", ");
+
 const BusinessSettingsPage: React.FC = () => {
   const { t } = useLanguage();
   const { showAlert } = useAppDialog();
@@ -53,7 +67,7 @@ const BusinessSettingsPage: React.FC = () => {
         setSettings({
           business_name: result.business_name || "",
           logo_path: result.logo_path || "",
-          address: result.address || "",
+          address: buildSingleLineAddress(result),
           city: result.city || "",
           postal_code: result.postal_code || "",
           phone: normalizePhilippinePhone(result.phone || ""),
@@ -194,8 +208,8 @@ const BusinessSettingsPage: React.FC = () => {
           settings.business_name,
           logoPath,
           settings.address,
-          settings.city,
-          settings.postal_code,
+          "",
+          "",
           normalizePhilippinePhone(settings.phone),
           settings.email,
           settings.tax_id,
@@ -363,37 +377,12 @@ const BusinessSettingsPage: React.FC = () => {
 
           <div>
             <label className="block text-sm font-medium mb-2">{t("address")}</label>
-            <textarea
+            <Input
               name="address"
               value={settings.address}
               onChange={handleChange}
-              placeholder="Street address"
-              className="w-full px-3 py-2 border border-input rounded-md bg-background text-foreground resize-none"
-              rows={2}
+              placeholder="Street, city, postal code"
             />
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">{t("city")}</label>
-              <Input
-                name="city"
-                value={settings.city}
-                onChange={handleChange}
-                placeholder="City"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">
-                {t("postalCode")}
-              </label>
-              <Input
-                name="postal_code"
-                value={settings.postal_code}
-                onChange={handleChange}
-                placeholder="12345"
-              />
-            </div>
           </div>
         </div>
       </Card>

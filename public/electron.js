@@ -837,6 +837,10 @@ ipcMain.handle('pdf:generate', async (event, invoiceData, businessData) => {
       const partsMaterialItems = outputItems.filter((item) => item?.type !== 'labor');
       const calculateItemsSubtotal = (items) =>
         items.reduce((sum, item) => sum + (Number(item?.amount) || 0), 0);
+      const businessAddress = [businessData.address, businessData.city, businessData.postal_code]
+        .map((value) => String(value || '').trim())
+        .filter(Boolean)
+        .join(', ');
       const appFontPath = path.join(
         app.getAppPath(),
         'node_modules/.pnpm/next@16.2.1_react-dom@19.2.4_react@19.2.4__react@19.2.4/node_modules/next/dist/compiled/@vercel/og/Geist-Regular.ttf',
@@ -862,18 +866,14 @@ ipcMain.handle('pdf:generate', async (event, invoiceData, businessData) => {
       }
 
       // Business name and info
-      doc.fontSize(16).font(titleFont).fillColor(primaryColor);
-      doc.text(businessData.business_name, businessNameX, businessBlockY + 2, { width: 190, lineGap: 0 });
+      doc.fontSize(24).font(titleFont).fillColor(primaryColor);
+      doc.text(businessData.business_name, businessNameX, businessBlockY + 1, { width: 220, lineGap: 0 });
 
-      currentY = businessBlockY + 22;
+      currentY = businessBlockY + 28;
 
       doc.fontSize(8).font(textFont).fillColor(textColor);
-      if (businessData.address) {
-        doc.text(businessData.address, 32, currentY, { width: 260, lineGap: 0 });
-        currentY += 9;
-      }
-      if (businessData.city || businessData.postal_code) {
-        doc.text(`${businessData.city || ''} ${businessData.postal_code || ''}`.trim(), 32, currentY, {
+      if (businessAddress) {
+        doc.text(businessAddress, 32, currentY, {
           width: 260,
           lineGap: 0,
         });

@@ -84,6 +84,16 @@ interface SaveInvoiceOptions {
 const createItemId = () =>
   `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
+const formatBusinessAddress = (businessSettings: {
+  address?: string | null;
+  city?: string | null;
+  postal_code?: string | null;
+} | null | undefined) =>
+  [businessSettings?.address, businessSettings?.city, businessSettings?.postal_code]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean)
+    .join(", ");
+
 const buildInvoiceSnapshot = (invoice: InvoiceForm) =>
   JSON.stringify({
     id: invoice.id,
@@ -806,8 +816,7 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
         if (targetStatus === "draft") {
           if (!options.silent) {
             await showAlert({
-              title:
-              savedInvoiceNumber
+              title: savedInvoiceNumber
                 ? t(invoice.id ? "draftUpdated" : "draftSaved")
                 : t("draftSaved"),
               confirmLabel: t("close"),
@@ -952,6 +961,7 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
       : invoice.due_date,
   };
   const invoiceCurrency = businessSettings?.currency || "PHP";
+  const businessAddress = formatBusinessAddress(businessSettings);
   const laborItems = invoice.items.filter((item) => item.type === "labor");
   const partsMaterialItems = invoice.items.filter(
     (item) => item.type === "product",
@@ -998,7 +1008,9 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
               <div className="col-span-2 whitespace-nowrap">
                 {t("quantityShort")}
               </div>
-              <div className="col-span-2 whitespace-nowrap">{t("unitPrice")}</div>
+              <div className="col-span-2 whitespace-nowrap">
+                {t("unitPrice")}
+              </div>
               <div className="col-span-2 whitespace-nowrap">{t("amount")}</div>
               <div className="col-span-1" />
             </div>
@@ -1217,26 +1229,20 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
             <div className="space-y-8 bg-white p-8 lg:p-12">
               <div className="flex flex-col gap-8 border-b-2 border-gray-200 pb-6 lg:flex-row lg:justify-between">
                 <div>
-                  {logoSrc && (
-                    <img
-                      src={logoSrc}
-                      alt={t("logo")}
-                      className="mb-3 max-h-[80px] max-w-[120px]"
-                    />
-                  )}
-                  <div className="text-2xl font-bold text-gray-800">
-                    {businessSettings?.business_name || t("shopManager")}
+                  <div className="flex items-center gap-4">
+                    {logoSrc && (
+                      <img
+                        src={logoSrc}
+                        alt={t("logo")}
+                        className="mb-3 max-h-20 max-w-30"
+                      />
+                    )}
+                    <div className="text-[34px] font-bold leading-tight text-gray-800">
+                      {businessSettings?.business_name || t("shopManager")}
+                    </div>
                   </div>
                   <div className="mt-2 space-y-1 text-sm text-gray-600">
-                    {businessSettings?.address && (
-                      <div>{businessSettings.address}</div>
-                    )}
-                    {(businessSettings?.city ||
-                      businessSettings?.postal_code) && (
-                      <div>
-                        {businessSettings.city} {businessSettings.postal_code}
-                      </div>
-                    )}
+                    {businessAddress && <div>{businessAddress}</div>}
                     {businessSettings?.phone && (
                       <div>
                         {t("phone")}: {businessSettings.phone}

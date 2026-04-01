@@ -34,6 +34,16 @@ interface InvoicePreviewProps {
   onClose: () => void;
 }
 
+const formatBusinessAddress = (businessSettings: {
+  address?: string | null;
+  city?: string | null;
+  postal_code?: string | null;
+} | null | undefined) =>
+  [businessSettings?.address, businessSettings?.city, businessSettings?.postal_code]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean)
+    .join(", ");
+
 const InvoicePreview: React.FC<InvoicePreviewProps> = ({
   invoice,
   businessSettings,
@@ -46,6 +56,7 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
   const vehicleInfoLines = buildVehicleInfoLines(invoice, invoiceLanguage);
   const hasVehicleInfo = vehicleInfoLines.length > 0;
   const currency = businessSettings?.currency || "PHP";
+  const businessAddress = formatBusinessAddress(businessSettings);
 
   const formatMoney = (amount: number | null | undefined) =>
     formatInvoiceCurrency(amount, currency, invoiceLanguage);
@@ -313,8 +324,8 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
                         src={logoSrc}
                         alt={t('logo')}
                         style={{
-                          maxWidth: '68px',
-                          maxHeight: '42px',
+                          maxWidth: '100px',
+                          maxHeight: '62px',
                           objectFit: 'contain',
                           flexShrink: 0,
                         }}
@@ -338,12 +349,7 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
                       lineHeight: '1.3',
                     }}
                   >
-                    {businessSettings?.address && <div>{businessSettings.address}</div>}
-                    {(businessSettings?.city || businessSettings?.postal_code) && (
-                      <div>
-                        {businessSettings.city} {businessSettings.postal_code}
-                      </div>
-                    )}
+                    {businessAddress && <div>{businessAddress}</div>}
                     {businessSettings?.phone && (
                       <div>
                         {invoiceT('phone')}: {businessSettings.phone}
