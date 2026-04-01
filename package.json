@@ -1,6 +1,6 @@
 {
   "name": "shopflow",
-  "version": "1.2.1",
+  "version": "1.2.2",
   "description": "ShopFlow is a local business operations app for invoices, inventory, contacts, finance, and workflow management.",
   "author": "Mo",
   "private": true,
