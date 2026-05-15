@@ -49,6 +49,7 @@ interface InvoiceForm {
   customer_name: string;
   customer_phone: string;
   customer_email: string;
+  customer_address: string;
   vehicle_make: string;
   vehicle_model: string;
   vehicle_year: string;
@@ -101,6 +102,7 @@ const buildInvoiceSnapshot = (invoice: InvoiceForm) =>
     customer_name: invoice.customer_name.trim(),
     customer_phone: normalizePhilippinePhone(invoice.customer_phone),
     customer_email: invoice.customer_email.trim(),
+    customer_address: invoice.customer_address.trim(),
     vehicle_make: invoice.vehicle_make.trim(),
     vehicle_model: invoice.vehicle_model.trim(),
     vehicle_year: invoice.vehicle_year.trim(),
@@ -132,6 +134,7 @@ const hasMeaningfulInvoiceContent = (invoice: InvoiceForm) =>
     invoice.customer_name.trim() ||
     invoice.customer_phone.trim() ||
     invoice.customer_email.trim() ||
+    invoice.customer_address.trim() ||
     invoice.vehicle_make.trim() ||
     invoice.vehicle_model.trim() ||
     invoice.vehicle_year.trim() ||
@@ -149,6 +152,7 @@ const createEmptyInvoice = (defaultTaxRate = 0): InvoiceForm => {
     customer_name: "",
     customer_phone: "",
     customer_email: "",
+    customer_address: "",
     vehicle_make: "",
     vehicle_model: "",
     vehicle_year: "",
@@ -180,6 +184,7 @@ const applyCustomerPrefill = (
     customer_name: customerPrefill.customer_name,
     customer_phone: normalizePhilippinePhone(customerPrefill.customer_phone),
     customer_email: customerPrefill.customer_email,
+    customer_address: customerPrefill.customer_address,
     vehicle_make: customerPrefill.vehicle_make,
     vehicle_model: customerPrefill.vehicle_model,
     vehicle_year: customerPrefill.vehicle_year,
@@ -330,6 +335,7 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
               invoiceRow.customer_phone || "",
             ),
             customer_email: invoiceRow.customer_email || "",
+            customer_address: invoiceRow.customer_address || "",
             vehicle_make: invoiceRow.vehicle_make || "",
             vehicle_model: invoiceRow.vehicle_model || "",
             vehicle_year: invoiceRow.vehicle_year || "",
@@ -677,8 +683,8 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
           await db.run(
             `UPDATE invoices
              SET invoice_number = ?, customer_name = ?, customer_phone = ?,
-                 customer_email = ?, vehicle_make = ?, vehicle_model = ?,
-                 vehicle_year = ?, license_plate = ?, invoice_date = ?,
+                 customer_email = ?, customer_address = ?, vehicle_make = ?,
+                 vehicle_model = ?, vehicle_year = ?, license_plate = ?, invoice_date = ?,
                  due_date = ?, due_upon_receipt = ?, invoice_language = ?,
                  notes = ?, subtotal = ?, tax_amount = ?, tax_rate = ?, total = ?,
                  status = ?, completed_at = ?, updated_at = CURRENT_TIMESTAMP
@@ -688,6 +694,7 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
               invoice.customer_name.trim(),
               normalizePhilippinePhone(invoice.customer_phone),
               invoice.customer_email.trim(),
+              invoice.customer_address.trim(),
               invoice.vehicle_make.trim(),
               invoice.vehicle_model.trim(),
               invoice.vehicle_year.trim(),
@@ -714,15 +721,16 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
           const result = await db.run(
             `INSERT INTO invoices (
               invoice_number, customer_name, customer_phone, customer_email,
-              vehicle_make, vehicle_model, vehicle_year, license_plate,
+              customer_address, vehicle_make, vehicle_model, vehicle_year, license_plate,
               invoice_date, due_date, due_upon_receipt, invoice_language,
               status, notes, subtotal, tax_amount, tax_rate, total, completed_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               savedInvoiceNumber,
               invoice.customer_name.trim(),
               normalizePhilippinePhone(invoice.customer_phone),
               invoice.customer_email.trim(),
+              invoice.customer_address.trim(),
               invoice.vehicle_make.trim(),
               invoice.vehicle_model.trim(),
               invoice.vehicle_year.trim(),
@@ -785,6 +793,7 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
           id: savedInvoiceId,
           invoice_number: savedInvoiceNumber || "",
           customer_phone: normalizePhilippinePhone(invoice.customer_phone),
+          customer_address: invoice.customer_address.trim(),
           due_date: dueDate,
           subtotal: totals.subtotal,
           tax_amount: totals.tax_amount,
@@ -800,6 +809,7 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
             id: savedInvoiceId,
             invoice_number: savedInvoiceNumber || "",
             customer_phone: normalizePhilippinePhone(current.customer_phone),
+            customer_address: current.customer_address.trim(),
             due_date: dueDate,
             subtotal: totals.subtotal,
             tax_amount: totals.tax_amount,
@@ -1385,6 +1395,23 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
                           )
                         }
                         className="mt-1"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="text-xs font-semibold text-gray-600">
+                        {t("address")}
+                      </label>
+                      <textarea
+                        value={invoice.customer_address}
+                        spellCheck
+                        rows={2}
+                        onChange={(event) =>
+                          handleInvoiceFieldChange(
+                            "customer_address",
+                            event.target.value,
+                          )
+                        }
+                        className="mt-1 w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm leading-5"
                       />
                     </div>
                   </div>

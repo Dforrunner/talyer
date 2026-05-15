@@ -67,6 +67,7 @@ const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
           ? {
               ...invData,
               customer_phone: normalizePhilippinePhone(invData.customer_phone || ''),
+              customer_address: invData.customer_address || '',
             }
           : null,
       );
@@ -203,6 +204,11 @@ const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
                   {invoiceData.customer_email && (
                     <p className="text-sm text-muted-foreground">
                       {invoiceData.customer_email}
+                    </p>
+                  )}
+                  {invoiceData.customer_address && (
+                    <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                      {invoiceData.customer_address}
                     </p>
                   )}
                 </div>

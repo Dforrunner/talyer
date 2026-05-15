@@ -433,6 +433,11 @@ const InvoicePreview: React.FC<InvoicePreviewProps> = ({
                     {invoiceT('email')}: {invoice.customer_email}
                   </div>
                 )}
+                {invoice.customer_address && (
+                  <div style={{ fontSize: '10px', color: '#666', lineHeight: '1.25', whiteSpace: 'pre-wrap' }}>
+                    {invoiceT('address')}: {invoice.customer_address}
+                  </div>
+                )}
               </div>
 
               {hasVehicleInfo && (

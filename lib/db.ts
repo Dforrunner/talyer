@@ -206,11 +206,11 @@ export async function generateInvoiceNumber() {
 }
 
 export async function createInvoice(invoice: any) {
-  const { invoice_number, customer_name, customer_phone, customer_email, invoice_date, due_date, notes, subtotal, tax_amount, tax_rate, total } = invoice;
+  const { invoice_number, customer_name, customer_phone, customer_email, customer_address, invoice_date, due_date, notes, subtotal, tax_amount, tax_rate, total } = invoice;
   return db.run(
-    `INSERT INTO invoices (invoice_number, customer_name, customer_phone, customer_email, invoice_date, due_date, notes, subtotal, tax_amount, tax_rate, total, status)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft')`,
-    [invoice_number, customer_name, customer_phone, customer_email, invoice_date, due_date, notes, subtotal, tax_amount, tax_rate, total]
+    `INSERT INTO invoices (invoice_number, customer_name, customer_phone, customer_email, customer_address, invoice_date, due_date, notes, subtotal, tax_amount, tax_rate, total, status)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'draft')`,
+    [invoice_number, customer_name, customer_phone, customer_email, customer_address, invoice_date, due_date, notes, subtotal, tax_amount, tax_rate, total]
   );
 }
 

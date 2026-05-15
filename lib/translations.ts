@@ -138,8 +138,8 @@ export const translations = {
     activeInvoicesDesc: "Open a saved draft and keep updating it until payment is due.",
     customerContactsDesc:
       "View customers collected from invoice history and start a new draft with their details.",
-    searchActiveInvoices: "Search by invoice number, customer, or vehicle...",
-    searchCustomerContacts: "Search by customer, phone, email, vehicle, or invoice...",
+    searchActiveInvoices: "Search by invoice number, customer, address, or vehicle...",
+    searchCustomerContacts: "Search by customer, phone, email, address, vehicle, or invoice...",
     noActiveInvoices: "No active invoices yet.",
     noCustomerContacts: "No customer contacts found yet.",
     unableToLoadCustomerContacts: "Unable to load customer contacts.",
@@ -600,9 +600,9 @@ export const translations = {
     activeInvoicesDesc: "Buksan ang naka-save na draft at ituloy ang pag-update hanggang handa na itong singilin.",
     customerContactsDesc:
       "Tingnan ang mga customer mula sa history ng invoice at gumawa agad ng bagong draft gamit ang details nila.",
-    searchActiveInvoices: "Maghanap gamit invoice number, customer, o sasakyan...",
+    searchActiveInvoices: "Maghanap gamit invoice number, customer, address, o sasakyan...",
     searchCustomerContacts:
-      "Maghanap gamit customer, phone, email, sasakyan, o invoice...",
+      "Maghanap gamit customer, phone, email, address, sasakyan, o invoice...",
     noActiveInvoices: "Wala pang aktibong invoice.",
     noCustomerContacts: "Wala pang customer contact.",
     unableToLoadCustomerContacts: "Hindi ma-load ang customer contacts.",

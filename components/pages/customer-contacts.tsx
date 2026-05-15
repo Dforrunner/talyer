@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { BookUser, CarFront, Mail, Phone, ReceiptText } from 'lucide-react';
+import { BookUser, CarFront, Mail, MapPin, Phone, ReceiptText } from 'lucide-react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,6 +19,7 @@ interface InvoiceContactRow {
   customer_name: string;
   customer_phone: string | null;
   customer_email: string | null;
+  customer_address: string | null;
   vehicle_make: string | null;
   vehicle_model: string | null;
   vehicle_year: string | null;
@@ -62,7 +63,6 @@ const buildContactKey = (row: InvoiceContactRow) => {
   const name = toText(row.customer_name).toLowerCase();
   const phone = normalizePhilippinePhone(toText(row.customer_phone)).toLowerCase();
   const email = toText(row.customer_email).toLowerCase();
-
   return `${name}::${phone}::${email}`;
 };
 
@@ -87,7 +87,7 @@ const CustomerContactsPage: React.FC<CustomerContactsPageProps> = ({
     try {
       setLoading(true);
       const rows = await db.query(
-        `SELECT id, invoice_number, customer_name, customer_phone, customer_email,
+        `SELECT id, invoice_number, customer_name, customer_phone, customer_email, customer_address,
                 vehicle_make, vehicle_model, vehicle_year, license_plate,
                 invoice_date, created_at
          FROM invoices
@@ -104,6 +104,7 @@ const CustomerContactsPage: React.FC<CustomerContactsPageProps> = ({
           customer_name: toText(row.customer_name),
           customer_phone: normalizePhilippinePhone(toText(row.customer_phone)),
           customer_email: toText(row.customer_email),
+          customer_address: toText(row.customer_address),
           vehicle_make: toText(row.vehicle_make),
           vehicle_model: toText(row.vehicle_model),
           vehicle_year: toText(row.vehicle_year),
@@ -126,6 +127,7 @@ const CustomerContactsPage: React.FC<CustomerContactsPageProps> = ({
           ...current,
           customer_phone: current.customer_phone || nextFields.customer_phone,
           customer_email: current.customer_email || nextFields.customer_email,
+          customer_address: current.customer_address || nextFields.customer_address,
           vehicle_make: current.vehicle_make || nextFields.vehicle_make,
           vehicle_model: current.vehicle_model || nextFields.vehicle_model,
           vehicle_year: current.vehicle_year || nextFields.vehicle_year,
@@ -162,6 +164,7 @@ const CustomerContactsPage: React.FC<CustomerContactsPageProps> = ({
       contact.customer_name.toLowerCase().includes(query) ||
       contact.customer_phone.toLowerCase().includes(query) ||
       contact.customer_email.toLowerCase().includes(query) ||
+      contact.customer_address.toLowerCase().includes(query) ||
       buildVehicleSummary(contact).toLowerCase().includes(query) ||
       contact.last_invoice_number.toLowerCase().includes(query)
     );
@@ -320,6 +323,14 @@ const CustomerContactsPage: React.FC<CustomerContactsPageProps> = ({
                             <div className="mt-1 text-xs text-muted-foreground whitespace-nowrap">
                               {contact.last_invoice_number}
                             </div>
+                            {contact.customer_address && (
+                              <div className="mt-1 flex items-start gap-1 text-xs text-muted-foreground">
+                                <MapPin className="mt-0.5 h-3 w-3 flex-shrink-0" />
+                                <span className="whitespace-pre-wrap">
+                                  {contact.customer_address}
+                                </span>
+                              </div>
+                            )}
                           </div>
                         </div>
                       </td>

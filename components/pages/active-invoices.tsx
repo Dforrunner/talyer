@@ -16,6 +16,7 @@ interface ActiveInvoice {
   customer_name: string;
   customer_phone: string | null;
   customer_email: string | null;
+  customer_address: string | null;
   invoice_date: string;
   subtotal: number;
   total: number;
@@ -49,6 +50,7 @@ const ActiveInvoicesPage: React.FC<ActiveInvoicesPageProps> = ({
       setLoading(true);
       const result = await db.query(
         `SELECT id, invoice_number, customer_name, customer_phone, customer_email,
+                customer_address,
                 invoice_date, subtotal, total,
                 updated_at, created_at, vehicle_make, vehicle_model, vehicle_year,
                 license_plate
@@ -87,6 +89,7 @@ const ActiveInvoicesPage: React.FC<ActiveInvoicesPageProps> = ({
       invoice.customer_name.toLowerCase().includes(query) ||
       (invoice.customer_phone || '').toLowerCase().includes(query) ||
       (invoice.customer_email || '').toLowerCase().includes(query) ||
+      (invoice.customer_address || '').toLowerCase().includes(query) ||
       vehicleSummary.includes(query)
     );
   });
@@ -214,6 +217,11 @@ const ActiveInvoicesPage: React.FC<ActiveInvoicesPageProps> = ({
                   {invoice.customer_email && (
                     <p className="text-sm text-muted-foreground">
                       {invoice.customer_email}
+                    </p>
+                  )}
+                  {invoice.customer_address && (
+                    <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">
+                      {invoice.customer_address}
                     </p>
                   )}
                 </div>

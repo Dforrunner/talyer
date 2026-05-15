@@ -434,6 +434,7 @@ function initializeDatabase() {
       customer_name TEXT NOT NULL,
       customer_phone TEXT,
       customer_email TEXT,
+      customer_address TEXT,
       vehicle_make TEXT,
       vehicle_model TEXT,
       vehicle_year TEXT,
@@ -542,6 +543,7 @@ function initializeDatabase() {
 
   ensureColumnExists('invoice_items', 'cost_price', 'REAL');
   ensureColumnExists('invoices', 'vehicle_make', 'TEXT');
+  ensureColumnExists('invoices', 'customer_address', 'TEXT');
   ensureColumnExists('invoices', 'vehicle_model', 'TEXT');
   ensureColumnExists('invoices', 'vehicle_year', 'TEXT');
   ensureColumnExists('invoices', 'license_plate', 'TEXT');
@@ -946,6 +948,19 @@ ipcMain.handle('pdf:generate', async (event, invoiceData, businessData) => {
         });
         customerY += 8;
       }
+      if (invoiceData.customer_address) {
+        doc.text(`${labels.address || 'Address'}: ${invoiceData.customer_address}`, 32, customerY, {
+          width: 240,
+          lineGap: 0,
+        });
+        customerY += Math.max(
+          8,
+          doc.heightOfString(`${labels.address || 'Address'}: ${invoiceData.customer_address}`, {
+            width: 240,
+            lineGap: 0,
+          }),
+        );
+      }
 
       const vehicleLines = [
         invoiceData.vehicle_make
@@ -1316,8 +1331,8 @@ ipcMain.handle('data:import', async (event, jsonData, shouldClear = false) => {
     if (importData.invoices) {
       const insertInvoice = db.prepare(`
         INSERT OR REPLACE INTO invoices 
-        (id, invoice_number, customer_name, customer_phone, customer_email, vehicle_make, vehicle_model, vehicle_year, license_plate, invoice_date, due_date, due_upon_receipt, invoice_language, status, notes, subtotal, tax_amount, tax_rate, total, paid, paid_at, completed_at, payment_method, pdf_path, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        (id, invoice_number, customer_name, customer_phone, customer_email, customer_address, vehicle_make, vehicle_model, vehicle_year, license_plate, invoice_date, due_date, due_upon_receipt, invoice_language, status, notes, subtotal, tax_amount, tax_rate, total, paid, paid_at, completed_at, payment_method, pdf_path, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       
       for (const invoice of importData.invoices) {
@@ -1327,6 +1342,7 @@ ipcMain.handle('data:import', async (event, jsonData, shouldClear = false) => {
           invoice.customer_name,
           invoice.customer_phone,
           invoice.customer_email,
+          invoice.customer_address ?? null,
           invoice.vehicle_make ?? null,
           invoice.vehicle_model ?? null,
           invoice.vehicle_year ?? null,

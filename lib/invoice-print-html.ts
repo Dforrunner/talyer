@@ -247,6 +247,10 @@ export function buildInvoicePrintHtml({
         line-height: 1.25;
       }
 
+      .customer-address {
+        white-space: pre-wrap;
+      }
+
       .table {
         width: 100%;
         margin-bottom: 6px;
@@ -472,6 +476,13 @@ export function buildInvoicePrintHtml({
             invoice?.customer_email
               ? `<div class="muted">${escapeHtml(invoiceT("email"))}: ${escapeHtml(
                   invoice.customer_email,
+                )}</div>`
+              : ""
+          }
+          ${
+            invoice?.customer_address
+              ? `<div class="muted customer-address">${escapeHtml(invoiceT("address"))}: ${escapeHtml(
+                  invoice.customer_address,
                 )}</div>`
               : ""
           }

@@ -11,6 +11,7 @@ export interface InvoiceData {
   customer_name: string;
   customer_phone?: string;
   customer_email?: string;
+  customer_address?: string;
   notes?: string;
   subtotal: number;
   tax_rate: number;
@@ -115,6 +116,10 @@ export function generateInvoicePDF(
       if (invoiceData.customer_email) {
         doc.text(`Email: ${invoiceData.customer_email}`, 50, currentY);
         currentY += 12;
+      }
+      if (invoiceData.customer_address) {
+        doc.text(`Address: ${invoiceData.customer_address}`, 50, currentY, { width: 240 });
+        currentY += Math.max(12, doc.heightOfString(`Address: ${invoiceData.customer_address}`, { width: 240 }));
       }
 
       currentY += 20;
