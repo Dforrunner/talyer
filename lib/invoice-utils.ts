@@ -15,6 +15,8 @@ export interface InvoiceVehicleInfo {
 
 export interface InvoiceLineItem {
   type?: string | null;
+  item_type?: string | null;
+  product_id?: number | null;
   description?: string | null;
   product_name?: string | null;
   quantity?: number | null;
@@ -142,12 +144,34 @@ export function filterInvoiceLineItemsForOutput(items: InvoiceLineItem[] = []) {
   return items.filter(shouldRenderInvoiceLineItem);
 }
 
+export function resolveInvoiceLineItemType(
+  item: InvoiceLineItem,
+): 'product' | 'labor' {
+  const savedType = String(item.type || item.item_type || '').toLowerCase();
+
+  if (savedType === 'labor') {
+    return 'labor';
+  }
+
+  if (
+    savedType === 'product' ||
+    savedType === 'part' ||
+    savedType === 'parts' ||
+    savedType === 'material' ||
+    savedType === 'materials'
+  ) {
+    return 'product';
+  }
+
+  return item.product_id == null ? 'labor' : 'product';
+}
+
 export function splitInvoiceItemsByType(items: InvoiceLineItem[] = []) {
   const laborItems: InvoiceLineItem[] = [];
   const partsMaterialItems: InvoiceLineItem[] = [];
 
   items.forEach((item) => {
-    if (item.type === 'labor') {
+    if (resolveInvoiceLineItemType(item) === 'labor') {
       laborItems.push(item);
       return;
     }

@@ -18,6 +18,7 @@ interface MonthlyData {
   revenue: number;
   productCosts: number;
   additionalExpenses: number;
+  salaryPayments: number;
   costs: number;
   profit: number;
 }
@@ -26,6 +27,7 @@ interface YearlyStats {
   totalRevenue: number;
   totalCosts: number;
   totalExpenses: number;
+  totalSalaryPayments: number;
   totalAdditionalIncome: number;
   totalProfit: number;
   profitMargin: number;
@@ -40,6 +42,7 @@ type RevenueSortKey =
   | 'revenue'
   | 'productCosts'
   | 'additionalExpenses'
+  | 'salaryPayments'
   | 'costs'
   | 'profit';
 
@@ -74,6 +77,7 @@ const RevenueTrackingPage: React.FC = () => {
             revenue: summary.revenue,
             productCosts: summary.productCosts,
             additionalExpenses: summary.additionalExpenses,
+            salaryPayments: summary.salaryPayments,
             costs: summary.costs,
             profit: summary.profit,
           };
@@ -86,11 +90,12 @@ const RevenueTrackingPage: React.FC = () => {
       const totalSalesRevenue = data.reduce((sum, month) => sum + month.salesRevenue, 0);
       const totalCosts = data.reduce((sum, month) => sum + month.productCosts, 0);
       const totalExpenses = data.reduce((sum, month) => sum + month.additionalExpenses, 0);
+      const totalSalaryPayments = data.reduce((sum, month) => sum + month.salaryPayments, 0);
       const totalAdditionalIncome = data.reduce((sum, month) => sum + month.additionalIncome, 0);
       const totalRevenue = totalSalesRevenue;
       
       // Calculate profit: Revenue + Additional Income - Costs - Expenses
-      const totalProfit = (totalRevenue + totalAdditionalIncome) - (totalCosts + totalExpenses);
+      const totalProfit = (totalRevenue + totalAdditionalIncome) - (totalCosts + totalExpenses + totalSalaryPayments);
       const profitMargin = (totalRevenue + totalAdditionalIncome) > 0 ? (totalProfit / (totalRevenue + totalAdditionalIncome)) * 100 : 0;
       const { startDate: startOfYear, endDate: endOfYear } = getYearDateRange(selectedYear);
       const invoiceCount = await db.get(
@@ -106,6 +111,7 @@ const RevenueTrackingPage: React.FC = () => {
         totalRevenue: Math.round(totalRevenue * 100) / 100,
         totalCosts: Math.round(totalCosts * 100) / 100,
         totalExpenses: Math.round(totalExpenses * 100) / 100,
+        totalSalaryPayments: Math.round(totalSalaryPayments * 100) / 100,
         totalAdditionalIncome: Math.round(totalAdditionalIncome * 100) / 100,
         totalProfit: Math.round(totalProfit * 100) / 100,
         profitMargin: Math.round(profitMargin * 100) / 100,
@@ -146,6 +152,8 @@ const RevenueTrackingPage: React.FC = () => {
         return month.productCosts;
       case 'additionalExpenses':
         return month.additionalExpenses;
+      case 'salaryPayments':
+        return month.salaryPayments;
       case 'costs':
         return month.costs;
       case 'profit':
@@ -217,6 +225,12 @@ const RevenueTrackingPage: React.FC = () => {
             color="bg-red-100 text-red-600"
           />
           <StatCard
+            icon={DollarSign}
+            label={t('salaryPayments')}
+            value={formatCurrency(yearlyStats.totalSalaryPayments)}
+            color="bg-amber-100 text-amber-600"
+          />
+          <StatCard
             icon={TrendingUp}
             label={t('totalProfit')}
             value={formatCurrency(yearlyStats.totalProfit)}
@@ -258,7 +272,7 @@ const RevenueTrackingPage: React.FC = () => {
               <Tooltip formatter={(value) => formatCurrency(Number(value ?? 0))} />
               <Legend />
               <Bar dataKey="revenue" fill="#10b981" name={`${t('revenue')} + ${t('additionalIncome')}`} />
-              <Bar dataKey="costs" fill="#f97316" name={`${t('costs')} + ${t('otherExpenses')}`} />
+              <Bar dataKey="costs" fill="#f97316" name={`${t('costs')} + ${t('otherExpenses')} + ${t('salaryPayments')}`} />
             </BarChart>
           </ResponsiveContainer>
         </Card>
@@ -296,6 +310,7 @@ const RevenueTrackingPage: React.FC = () => {
                   data={[
                     { name: t('costs'), value: Math.max(yearlyStats.totalCosts, 0) },
                     { name: t('otherExpenses'), value: Math.max(yearlyStats.totalExpenses, 0) },
+                    { name: t('salaryPayments'), value: Math.max(yearlyStats.totalSalaryPayments, 0) },
                     { name: t('profit'), value: Math.max(yearlyStats.totalProfit, 0) },
                   ].filter((entry) => entry.value > 0)}
                   cx="50%"
@@ -407,6 +422,19 @@ const RevenueTrackingPage: React.FC = () => {
                 </th>
                 <th className="w-px px-6 py-3 text-right whitespace-nowrap">
                   <SortableTableHeader
+                    label={t('salaryPayments')}
+                    sortKey="salaryPayments"
+                    sortConfig={sortConfig}
+                    onSort={(key) =>
+                      setSortConfig((current) =>
+                        getNextSortConfig(current, key as RevenueSortKey, 'desc'),
+                      )
+                    }
+                    align="right"
+                  />
+                </th>
+                <th className="w-px px-6 py-3 text-right whitespace-nowrap">
+                  <SortableTableHeader
                     label={t('costs')}
                     sortKey="costs"
                     sortConfig={sortConfig}
@@ -445,6 +473,7 @@ const RevenueTrackingPage: React.FC = () => {
                     <td className="px-6 py-4 text-sm text-right whitespace-nowrap">{formatCurrency(month.revenue)}</td>
                     <td className="px-6 py-4 text-sm text-right whitespace-nowrap">{formatCurrency(month.productCosts)}</td>
                     <td className="px-6 py-4 text-sm text-right whitespace-nowrap">{formatCurrency(month.additionalExpenses)}</td>
+                    <td className="px-6 py-4 text-sm text-right whitespace-nowrap">{formatCurrency(month.salaryPayments)}</td>
                     <td className="px-6 py-4 text-sm text-right whitespace-nowrap">{formatCurrency(month.costs)}</td>
                     <td
                       className={`px-6 py-4 text-sm text-right font-semibold whitespace-nowrap ${

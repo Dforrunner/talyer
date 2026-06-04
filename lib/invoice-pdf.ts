@@ -1,6 +1,9 @@
 import { db } from '@/lib/db';
 import { safePdfGenerate } from '@/lib/electron-api';
-import { buildInvoicePdfLabels } from '@/lib/invoice-utils';
+import {
+  buildInvoicePdfLabels,
+  resolveInvoiceLineItemType,
+} from '@/lib/invoice-utils';
 import { normalizePhilippinePhone } from '@/lib/phone-utils';
 
 export async function getInvoiceWithItems(invoiceId: number) {
@@ -38,7 +41,9 @@ export async function generateInvoicePdfForInvoice(invoiceId: number) {
       customer_address: invoice.customer_address || '',
       labels: buildInvoicePdfLabels(invoice.invoice_language),
       items: items.map((item: any) => ({
-        type: item.item_type === 'labor' ? 'labor' : 'product',
+        type: resolveInvoiceLineItemType(item),
+        item_type: item.item_type,
+        product_id: item.product_id,
         description: item.description || item.product_name || '',
         product_name: item.product_name || '',
         quantity: item.quantity,

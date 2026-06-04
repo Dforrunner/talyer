@@ -104,6 +104,7 @@ export interface MonthlyFinancialSummary {
   revenue: number;
   productCosts: number;
   additionalExpenses: number;
+  salaryPayments: number;
   costs: number;
   profit: number;
   invoiceCount: number;
@@ -311,24 +312,117 @@ export async function getMonthlyAdditionalExpenses(year: number, month: number) 
   );
 }
 
+export async function getMonthlySalaryPayments(year: number, month: number) {
+  const { startDate, endDate } = getMonthDateRange(year, month);
+
+  await ensureSalarySchema();
+
+  return db.get(
+    `SELECT SUM(amount) as total_salary_payments
+     FROM salary_payments
+     WHERE paid_at >= ? AND paid_at <= ?`,
+    [startDate, endDate]
+  );
+}
+
+export async function ensureSalarySchema() {
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS employees (
+      id INTEGER PRIMARY KEY,
+      name TEXT UNIQUE NOT NULL,
+      phone TEXT,
+      role TEXT,
+      default_pay_type TEXT NOT NULL DEFAULT 'daily',
+      default_rate REAL DEFAULT 0,
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS salary_payments (
+      id INTEGER PRIMARY KEY,
+      employee_id INTEGER,
+      invoice_id INTEGER,
+      employee_name TEXT NOT NULL,
+      pay_type TEXT NOT NULL DEFAULT 'daily',
+      job_reference TEXT,
+      amount REAL NOT NULL,
+      paid_at DATE NOT NULL,
+      payment_method TEXT,
+      notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (employee_id) REFERENCES employees(id)
+    );
+
+  `);
+
+  const employeeIdColumn = await db.get(
+    `SELECT COUNT(*) as count
+     FROM pragma_table_info('salary_payments')
+     WHERE name = 'employee_id'`,
+  );
+
+  if (!employeeIdColumn?.count) {
+    await db.run('ALTER TABLE salary_payments ADD COLUMN employee_id INTEGER');
+  }
+
+  const invoiceIdColumn = await db.get(
+    `SELECT COUNT(*) as count
+     FROM pragma_table_info('salary_payments')
+     WHERE name = 'invoice_id'`,
+  );
+
+  if (!invoiceIdColumn?.count) {
+    await db.run('ALTER TABLE salary_payments ADD COLUMN invoice_id INTEGER');
+  }
+
+  await db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_salary_payments_paid_at ON salary_payments(paid_at);
+    CREATE INDEX IF NOT EXISTS idx_salary_payments_employee ON salary_payments(employee_name);
+    CREATE INDEX IF NOT EXISTS idx_salary_payments_employee_id ON salary_payments(employee_id);
+    CREATE INDEX IF NOT EXISTS idx_salary_payments_invoice_id ON salary_payments(invoice_id);
+    CREATE INDEX IF NOT EXISTS idx_employees_active_name ON employees(active, name);
+  `);
+
+  await db.run(
+    `INSERT OR IGNORE INTO employees (name)
+     SELECT DISTINCT employee_name
+     FROM salary_payments
+     WHERE employee_name IS NOT NULL AND TRIM(employee_name) != ''`,
+  );
+
+  await db.run(
+    `UPDATE salary_payments
+     SET employee_id = (
+       SELECT employees.id
+       FROM employees
+       WHERE employees.name = salary_payments.employee_name
+     )
+     WHERE employee_id IS NULL`,
+  );
+}
+
 export async function getMonthlyFinancialSummary(
   year: number,
   month: number,
 ): Promise<MonthlyFinancialSummary> {
-  const [revenue, costs, additionalIncome, additionalExpenses] =
+  const [revenue, costs, additionalIncome, additionalExpenses, salaryPayments] =
     await Promise.all([
       getMonthlyRevenue(year, month),
       getMonthlyCosts(year, month),
       getMonthlyAdditionalIncome(year, month),
       getMonthlyAdditionalExpenses(year, month),
+      getMonthlySalaryPayments(year, month),
     ]);
 
   const salesRevenue = normalizeAmount(revenue?.total_revenue);
   const productCosts = normalizeAmount(costs?.total_cost);
   const extraIncome = normalizeAmount(additionalIncome?.total_income);
   const extraExpenses = normalizeAmount(additionalExpenses?.total_expenses);
+  const salaryCosts = normalizeAmount(salaryPayments?.total_salary_payments);
   const totalRevenue = salesRevenue + extraIncome;
-  const totalCosts = productCosts + extraExpenses;
+  const totalCosts = productCosts + extraExpenses + salaryCosts;
 
   return {
     salesRevenue: roundCurrency(salesRevenue),
@@ -336,6 +430,7 @@ export async function getMonthlyFinancialSummary(
     revenue: roundCurrency(totalRevenue),
     productCosts: roundCurrency(productCosts),
     additionalExpenses: roundCurrency(extraExpenses),
+    salaryPayments: roundCurrency(salaryCosts),
     costs: roundCurrency(totalCosts),
     profit: roundCurrency(totalRevenue - totalCosts),
     invoiceCount: normalizeAmount(revenue?.invoice_count),

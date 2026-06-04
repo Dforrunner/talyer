@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Download, Eye, Plus, Printer, Trash2 } from "lucide-react";
+import { CheckCircle, Download, Eye, Plus, Printer, Trash2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,7 +18,10 @@ import { useAppDialog } from "@/hooks/use-app-dialog";
 import { getLocalDateInputValue } from "@/lib/date-utils";
 import { buildInvoicePrintHtml } from "@/lib/invoice-print-html";
 import { generateInvoicePdfForInvoice } from "@/lib/invoice-pdf";
-import { calculateInvoiceItemsSubtotal } from "@/lib/invoice-utils";
+import {
+  calculateInvoiceItemsSubtotal,
+  resolveInvoiceLineItemType,
+} from "@/lib/invoice-utils";
 import { normalizePhilippinePhone } from "@/lib/phone-utils";
 import { type CustomerContactPrefill } from "@/lib/customer-contacts";
 import InvoicePreview from "@/components/invoice-preview";
@@ -64,7 +67,7 @@ interface InvoiceForm {
   tax_rate: number;
   tax_amount: number;
   total: number;
-  status: "draft" | "open" | "paid";
+  status: "draft" | "paid";
 }
 
 interface InvoiceCreatorPageProps {
@@ -353,10 +356,7 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
             notes: invoiceRow.notes || "",
             items: (itemRows || []).map((item: any) => ({
               id: createItemId(),
-              type:
-                item.item_type === "labor"
-                  ? ("labor" as const)
-                  : ("product" as const),
+              type: resolveInvoiceLineItemType(item),
               product_id: item.product_id ?? undefined,
               product_name: item.product_name || undefined,
               description: item.description || "",
@@ -370,8 +370,8 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
             tax_amount: Number(invoiceRow.tax_amount) || 0,
             total: Number(invoiceRow.total) || 0,
             status:
-              invoiceRow.status === "paid" || invoiceRow.status === "open"
-                ? invoiceRow.status
+              invoiceRow.status === "paid" || invoiceRow.status === "open" || invoiceRow.status === "completed"
+                ? "paid"
                 : "draft",
           };
           lastSavedSnapshotRef.current = buildInvoiceSnapshot(loadedInvoice);
@@ -563,7 +563,7 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
   };
 
   const validateInvoice = async (
-    targetStatus: "draft" | "open",
+    targetStatus: "draft" | "paid",
     options: SaveInvoiceOptions = {},
   ) => {
     const shouldAlert = !options.silent;
@@ -578,7 +578,7 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
       return false;
     }
 
-    if (targetStatus === "open" && invoice.items.length === 0) {
+    if (targetStatus === "paid" && invoice.items.length === 0) {
       if (shouldAlert) {
         await showAlert({
           title: t("pleaseAddAtLeastOneItem"),
@@ -630,7 +630,7 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
   };
 
   const saveInvoice = async (
-    targetStatus: "draft" | "open",
+    targetStatus: "draft" | "paid",
     options: SaveInvoiceOptions = {},
   ) => {
     if (!(await validateInvoice(targetStatus, options))) {
@@ -677,7 +677,8 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
             : invoice.due_date;
         const totals = calculateTotals(invoice.items, invoice.tax_rate);
         const completedAt =
-          targetStatus === "open" ? new Date().toISOString() : null;
+          targetStatus === "paid" ? new Date().toISOString() : null;
+        const paidAt = targetStatus === "paid" ? new Date().toISOString() : null;
 
         if (savedInvoiceId) {
           await db.run(
@@ -687,7 +688,8 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
                  vehicle_model = ?, vehicle_year = ?, license_plate = ?, invoice_date = ?,
                  due_date = ?, due_upon_receipt = ?, invoice_language = ?,
                  notes = ?, subtotal = ?, tax_amount = ?, tax_rate = ?, total = ?,
-                 status = ?, completed_at = ?, updated_at = CURRENT_TIMESTAMP
+                 status = ?, paid = ?, paid_at = ?, completed_at = ?,
+                 updated_at = CURRENT_TIMESTAMP
              WHERE id = ?`,
             [
               savedInvoiceNumber,
@@ -709,6 +711,8 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
               invoice.tax_rate,
               totals.total,
               targetStatus,
+              targetStatus === "paid" ? 1 : 0,
+              paidAt,
               completedAt,
               savedInvoiceId,
             ],
@@ -723,8 +727,8 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
               invoice_number, customer_name, customer_phone, customer_email,
               customer_address, vehicle_make, vehicle_model, vehicle_year, license_plate,
               invoice_date, due_date, due_upon_receipt, invoice_language,
-              status, notes, subtotal, tax_amount, tax_rate, total, completed_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              status, notes, subtotal, tax_amount, tax_rate, total, paid, paid_at, completed_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             [
               savedInvoiceNumber,
               invoice.customer_name.trim(),
@@ -745,6 +749,8 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
               totals.tax_amount,
               invoice.tax_rate,
               totals.total,
+              targetStatus === "paid" ? 1 : 0,
+              paidAt,
               completedAt,
             ],
           );
@@ -784,7 +790,7 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
           throw new Error("Invoice was not saved");
         }
 
-        if (targetStatus === "open" || !options.silent) {
+        if (targetStatus === "paid" || !options.silent) {
           await generateInvoicePdfForInvoice(savedInvoiceId);
         }
 
@@ -835,7 +841,7 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
           onDraftSaved?.(savedInvoiceId);
         } else {
           await showAlert({
-            title: t("invoiceCompletedSuccess"),
+            title: t("invoiceMarkedPaidSuccess"),
             confirmLabel: t("close"),
           });
           onInvoiceCompleted?.(savedInvoiceId);
@@ -1226,10 +1232,12 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
                   : t("saveDraft")}
             </Button>
             <Button
-              onClick={() => void saveInvoice("open")}
+              onClick={() => void saveInvoice("paid")}
               disabled={saving || downloadingPdf}
+              className="gap-2"
             >
-              {saving ? t("completingInvoice") : t("completeInvoice")}
+              <CheckCircle className="h-4 w-4" />
+              {saving ? t("completingInvoice") : t("markAsPaid")}
             </Button>
           </div>
         </div>

@@ -28,7 +28,7 @@ interface Invoice {
   created_at: string;
   paid_at: string | null;
   total: number;
-  status: 'draft' | 'open' | 'paid';
+  status: 'draft' | 'paid';
   pdf_path: string | null;
   vehicle_make: string | null;
   vehicle_model: string | null;
@@ -112,7 +112,12 @@ const InvoiceHistoryPage: React.FC<InvoiceHistoryPageProps> = ({
          FROM invoices
          ORDER BY created_at DESC, id DESC`,
       );
-      setInvoices(result || []);
+      setInvoices(
+        (result || []).map((invoice: Invoice & { status: string }) => ({
+          ...invoice,
+          status: normalizeInvoiceStatus(invoice.status),
+        })),
+      );
     } catch (error) {
       console.error('[InvoiceHistory] Error loading invoices:', error);
     } finally {
@@ -122,12 +127,8 @@ const InvoiceHistoryPage: React.FC<InvoiceHistoryPageProps> = ({
 
   const handleDownloadPDF = async (invoice: Invoice) => {
     try {
-      let pdfPath = invoice.pdf_path;
-
-      if (!pdfPath || !(await file.exists(pdfPath))) {
-        const generated = await generateInvoicePdfForInvoice(invoice.id);
-        pdfPath = generated.pdfPath;
-      }
+      const generated = await generateInvoicePdfForInvoice(invoice.id);
+      const pdfPath = generated.pdfPath;
 
       if (!pdfPath) {
         throw new Error(t('errorDownloadingPdf'));
@@ -135,7 +136,7 @@ const InvoiceHistoryPage: React.FC<InvoiceHistoryPageProps> = ({
 
       const savedPath = await file.saveCopy(
         pdfPath,
-        `${invoice.invoice_number || 'invoice'}.pdf`,
+        `${generated.invoice.invoice_number || invoice.invoice_number || 'invoice'}.pdf`,
       );
 
       if (savedPath) {
@@ -203,15 +204,37 @@ const InvoiceHistoryPage: React.FC<InvoiceHistoryPageProps> = ({
     }
   };
 
-  const handleMarkAsPaid = async (id: number) => {
+  const normalizeInvoiceStatus = (status: string): Invoice['status'] =>
+    status === 'paid' || status === 'open' || status === 'completed'
+      ? 'paid'
+      : 'draft';
+
+  const handleStatusChange = async (id: number, nextStatus: Invoice['status']) => {
     try {
-      await db.run(
-        `UPDATE invoices
-         SET status = 'paid', paid = 1, paid_at = CURRENT_TIMESTAMP,
-             updated_at = CURRENT_TIMESTAMP
-         WHERE id = ?`,
-        [id],
-      );
+      if (nextStatus === 'paid') {
+        await db.run(
+          `UPDATE invoices
+           SET status = 'paid',
+               paid = 1,
+               paid_at = COALESCE(paid_at, CURRENT_TIMESTAMP),
+               completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP),
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id = ?`,
+          [id],
+        );
+      } else {
+        await db.run(
+          `UPDATE invoices
+           SET status = 'draft',
+               paid = 0,
+               paid_at = NULL,
+               completed_at = NULL,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id = ?`,
+          [id],
+        );
+      }
+
       await loadInvoices();
     } catch (error) {
       console.error('[InvoiceHistory] Error updating invoice:', error);
@@ -240,9 +263,9 @@ const InvoiceHistoryPage: React.FC<InvoiceHistoryPageProps> = ({
     }
 
     return {
-      label: t('openInvoice'),
-      className: 'bg-amber-100 text-amber-700',
-      icon: <Clock className="h-3 w-3" />,
+      label: t('paid'),
+      className: 'bg-green-100 text-green-700',
+      icon: <CheckCircle className="h-3 w-3" />,
     };
   };
 
@@ -324,7 +347,6 @@ const InvoiceHistoryPage: React.FC<InvoiceHistoryPageProps> = ({
           >
             <option value="all">{t('allStatuses')}</option>
             <option value="draft">{t('draft')}</option>
-            <option value="open">{t('openInvoice')}</option>
             <option value="paid">{t('paid')}</option>
           </select>
         </div>
@@ -441,7 +463,8 @@ const InvoiceHistoryPage: React.FC<InvoiceHistoryPageProps> = ({
                 </tr>
               ) : (
                 sortedInvoices.map((invoice) => {
-                  const statusBadge = getStatusBadge(invoice.status);
+                  const invoiceStatus = normalizeInvoiceStatus(invoice.status);
+                  const statusBadge = getStatusBadge(invoiceStatus);
 
                   return (
                     <tr
@@ -507,7 +530,21 @@ const InvoiceHistoryPage: React.FC<InvoiceHistoryPageProps> = ({
                           >
                             <Download className="h-4 w-4" />
                           </Button>
-                          {invoice.status === 'draft' && (
+                          <select
+                            value={invoiceStatus}
+                            onChange={(event) =>
+                              void handleStatusChange(
+                                invoice.id,
+                                event.target.value as Invoice['status'],
+                              )
+                            }
+                            className="h-9 rounded-md border border-input bg-background px-2 text-sm text-foreground"
+                            title={t('status')}
+                          >
+                            <option value="draft">{t('draft')}</option>
+                            <option value="paid">{t('paid')}</option>
+                          </select>
+                          {invoiceStatus === 'draft' && (
                             <Button
                               variant="ghost"
                               size="sm"
@@ -515,17 +552,6 @@ const InvoiceHistoryPage: React.FC<InvoiceHistoryPageProps> = ({
                               title={t('editDraft')}
                             >
                               <Pencil className="h-4 w-4" />
-                            </Button>
-                          )}
-                          {invoice.status === 'open' && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => void handleMarkAsPaid(invoice.id)}
-                              title={t('markAsPaid')}
-                              className="text-green-600 hover:text-green-700"
-                            >
-                              <CheckCircle className="h-4 w-4" />
                             </Button>
                           )}
                           <Button

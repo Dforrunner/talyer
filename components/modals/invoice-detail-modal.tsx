@@ -11,10 +11,13 @@ import { useLanguage } from '@/hooks/use-language';
 import InvoicePreview from '@/components/invoice-preview';
 import {
   buildVehicleInfoLines,
+  calculateInvoiceItemsSubtotal,
   formatInvoiceCurrency,
   formatInvoiceDate,
   getInvoiceTranslator,
   resolveInvoiceLanguage,
+  resolveInvoiceLineItemType,
+  splitInvoiceItemsByType,
 } from '@/lib/invoice-utils';
 import { normalizePhilippinePhone } from '@/lib/phone-utils';
 import { getNextSortConfig, sortRows, type SortConfig } from '@/lib/table-sort';
@@ -71,7 +74,13 @@ const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
             }
           : null,
       );
-      setItems(itemsData || []);
+      setItems(
+        (itemsData || []).map((item: any) => ({
+          ...item,
+          type: resolveInvoiceLineItemType(item),
+          description: item.description || item.product_name || '',
+        })),
+      );
       setBusinessSettings(
         settings
           ? {
@@ -128,34 +137,151 @@ const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
   const dueDateText = invoiceData.due_upon_receipt
     ? invoiceT('paymentDueUponReceipt')
     : formatDocDate(invoiceData.due_date);
-  const sortedItems = sortRows(items, sortConfig, (item, key) => {
-    switch (key) {
-      case 'description':
-        return item.description || item.product_name || '';
-      case 'quantity':
-        return Number(item.quantity) || 0;
-      case 'unit_price':
-        return Number(item.unit_price) || 0;
-      case 'amount':
-        return Number(item.amount) || 0;
-      default:
-        return '';
+  const sortInvoiceItems = (sectionItems: any[]) =>
+    sortRows(sectionItems, sortConfig, (item, key) => {
+      switch (key) {
+        case 'description':
+          return item.description || item.product_name || '';
+        case 'quantity':
+          return Number(item.quantity) || 0;
+        case 'unit_price':
+          return Number(item.unit_price) || 0;
+        case 'amount':
+          return Number(item.amount) || 0;
+        default:
+          return '';
+      }
+    });
+  const { laborItems, partsMaterialItems } = splitInvoiceItemsByType(items);
+  const sortedLaborItems = sortInvoiceItems(laborItems);
+  const sortedPartsMaterialItems = sortInvoiceItems(partsMaterialItems);
+  const renderItemRows = (sectionItems: any[], emptyLabel: string) => {
+    if (sectionItems.length === 0) {
+      return (
+        <tr>
+          <td
+            colSpan={4}
+            className="px-4 py-6 text-center text-sm text-muted-foreground"
+          >
+            {emptyLabel}
+          </td>
+        </tr>
+      );
     }
-  });
+
+    return sectionItems.map((item) => (
+      <tr
+        key={item.id}
+        className="border-b border-border last:border-b-0"
+      >
+        <td className="px-4 py-2 text-sm">
+          {item.description || item.product_name}
+        </td>
+        <td className="px-4 py-2 text-right text-sm whitespace-nowrap">
+          {item.quantity}
+        </td>
+        <td className="px-4 py-2 text-right text-sm whitespace-nowrap">
+          {formatMoney(item.unit_price)}
+        </td>
+        <td className="px-4 py-2 text-right text-sm font-medium whitespace-nowrap">
+          {formatMoney(item.amount)}
+        </td>
+      </tr>
+    ));
+  };
+  const renderItemSection = (
+    title: string,
+    sectionItems: any[],
+    emptyLabel: string,
+    subtotalLabel: string,
+  ) => {
+    const sectionSubtotal = calculateInvoiceItemsSubtotal(sectionItems);
+
+    return (
+      <div className="overflow-hidden rounded-lg border border-border">
+        <div className="flex items-center justify-between gap-4 border-b border-border bg-muted/30 px-4 py-3">
+          <h4 className="text-sm font-semibold">{title}</h4>
+          <div className="text-sm font-medium">
+            {subtotalLabel}: {formatMoney(sectionSubtotal)}
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[560px]">
+            <thead className="border-b border-border bg-muted/50">
+              <tr>
+                <th className="px-4 py-2 text-left">
+                  <SortableTableHeader
+                    label={t('description')}
+                    sortKey="description"
+                    sortConfig={sortConfig}
+                    onSort={(key) =>
+                      setSortConfig((current) =>
+                        getNextSortConfig(current, key as InvoiceItemSortKey),
+                      )
+                    }
+                  />
+                </th>
+                <th className="w-px px-4 py-2 text-right whitespace-nowrap">
+                  <SortableTableHeader
+                    label={t('quantityShort')}
+                    sortKey="quantity"
+                    sortConfig={sortConfig}
+                    onSort={(key) =>
+                      setSortConfig((current) =>
+                        getNextSortConfig(current, key as InvoiceItemSortKey, 'desc'),
+                      )
+                    }
+                    align="right"
+                  />
+                </th>
+                <th className="w-px px-4 py-2 text-right whitespace-nowrap">
+                  <SortableTableHeader
+                    label={t('unitPrice')}
+                    sortKey="unit_price"
+                    sortConfig={sortConfig}
+                    onSort={(key) =>
+                      setSortConfig((current) =>
+                        getNextSortConfig(current, key as InvoiceItemSortKey, 'desc'),
+                      )
+                    }
+                    align="right"
+                  />
+                </th>
+                <th className="w-px px-4 py-2 text-right whitespace-nowrap">
+                  <SortableTableHeader
+                    label={t('amount')}
+                    sortKey="amount"
+                    sortConfig={sortConfig}
+                    onSort={(key) =>
+                      setSortConfig((current) =>
+                        getNextSortConfig(current, key as InvoiceItemSortKey, 'desc'),
+                      )
+                    }
+                    align="right"
+                  />
+                </th>
+              </tr>
+            </thead>
+            <tbody>{renderItemRows(sectionItems, emptyLabel)}</tbody>
+          </table>
+        </div>
+      </div>
+    );
+  };
 
   const statusLabel =
     invoiceData.status === 'paid'
       ? t('paid')
       : invoiceData.status === 'draft'
         ? t('draft')
-        : t('openInvoice');
+        : t('paid');
 
   const statusClass =
     invoiceData.status === 'paid'
       ? 'bg-green-100 text-green-700'
       : invoiceData.status === 'draft'
         ? 'bg-blue-100 text-blue-700'
-        : 'bg-amber-100 text-amber-700';
+        : 'bg-green-100 text-green-700';
 
   return (
     <>
@@ -271,96 +397,27 @@ const InvoiceDetailModal: React.FC<InvoiceDetailModalProps> = ({
 
             <div>
               <h3 className="mb-3 font-semibold">{t('items')}</h3>
-              <div className="overflow-hidden rounded-lg border border-border">
-                <table className="w-full min-w-[560px]">
-                  <thead className="border-b border-border bg-muted/50">
-                    <tr>
-                      <th className="px-4 py-2 text-left">
-                        <SortableTableHeader
-                          label={t('description')}
-                          sortKey="description"
-                          sortConfig={sortConfig}
-                          onSort={(key) =>
-                            setSortConfig((current) =>
-                              getNextSortConfig(current, key as InvoiceItemSortKey),
-                            )
-                          }
-                        />
-                      </th>
-                      <th className="w-px px-4 py-2 text-right whitespace-nowrap">
-                        <SortableTableHeader
-                          label={t('quantityShort')}
-                          sortKey="quantity"
-                          sortConfig={sortConfig}
-                          onSort={(key) =>
-                            setSortConfig((current) =>
-                              getNextSortConfig(current, key as InvoiceItemSortKey, 'desc'),
-                            )
-                          }
-                          align="right"
-                        />
-                      </th>
-                      <th className="w-px px-4 py-2 text-right whitespace-nowrap">
-                        <SortableTableHeader
-                          label={t('unitPrice')}
-                          sortKey="unit_price"
-                          sortConfig={sortConfig}
-                          onSort={(key) =>
-                            setSortConfig((current) =>
-                              getNextSortConfig(current, key as InvoiceItemSortKey, 'desc'),
-                            )
-                          }
-                          align="right"
-                        />
-                      </th>
-                      <th className="w-px px-4 py-2 text-right whitespace-nowrap">
-                        <SortableTableHeader
-                          label={t('amount')}
-                          sortKey="amount"
-                          sortConfig={sortConfig}
-                          onSort={(key) =>
-                            setSortConfig((current) =>
-                              getNextSortConfig(current, key as InvoiceItemSortKey, 'desc'),
-                            )
-                          }
-                          align="right"
-                        />
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {items.length === 0 ? (
-                      <tr>
-                        <td
-                          colSpan={4}
-                          className="px-4 py-6 text-center text-sm text-muted-foreground"
-                        >
-                          {t('noItemsAddedYet')}
-                        </td>
-                      </tr>
-                    ) : (
-                      sortedItems.map((item) => (
-                        <tr
-                          key={item.id}
-                          className="border-b border-border last:border-b-0"
-                        >
-                          <td className="px-4 py-2 text-sm">
-                            {item.description || item.product_name}
-                          </td>
-                          <td className="px-4 py-2 text-right text-sm whitespace-nowrap">
-                            {item.quantity}
-                          </td>
-                          <td className="px-4 py-2 text-right text-sm whitespace-nowrap">
-                            {formatMoney(item.unit_price)}
-                          </td>
-                          <td className="px-4 py-2 text-right text-sm font-medium whitespace-nowrap">
-                            {formatMoney(item.amount)}
-                          </td>
-                        </tr>
-                      ))
+              <div className="space-y-4">
+                {items.length === 0 ? (
+                  <div className="rounded-lg border border-border px-4 py-6 text-center text-sm text-muted-foreground">
+                    {t('noItemsAddedYet')}
+                  </div>
+                ) : (
+                  <>
+                    {renderItemSection(
+                      t('labor'),
+                      sortedLaborItems,
+                      t('noLaborAddedYet'),
+                      t('laborSubtotal'),
                     )}
-                  </tbody>
-                </table>
+                    {renderItemSection(
+                      t('partsMaterials'),
+                      sortedPartsMaterialItems,
+                      t('noPartsMaterialsAddedYet'),
+                      t('partsMaterialsSubtotal'),
+                    )}
+                  </>
+                )}
               </div>
             </div>
 

@@ -532,6 +532,34 @@ function initializeDatabase() {
       updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
     );
 
+    CREATE TABLE IF NOT EXISTS employees (
+      id INTEGER PRIMARY KEY,
+      name TEXT UNIQUE NOT NULL,
+      phone TEXT,
+      role TEXT,
+      default_pay_type TEXT NOT NULL DEFAULT 'daily',
+      default_rate REAL DEFAULT 0,
+      active INTEGER NOT NULL DEFAULT 1,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS salary_payments (
+      id INTEGER PRIMARY KEY,
+      employee_id INTEGER,
+      invoice_id INTEGER,
+      employee_name TEXT NOT NULL,
+      pay_type TEXT NOT NULL DEFAULT 'daily',
+      job_reference TEXT,
+      amount REAL NOT NULL,
+      paid_at DATE NOT NULL,
+      payment_method TEXT,
+      notes TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (employee_id) REFERENCES employees(id)
+    );
+
     CREATE INDEX IF NOT EXISTS idx_expenses_date ON expenses(expense_date);
     CREATE INDEX IF NOT EXISTS idx_income_date ON income(income_date);
     CREATE INDEX IF NOT EXISTS idx_recurring_expenses_due ON recurring_expenses(next_due_date, active);
@@ -551,6 +579,31 @@ function initializeDatabase() {
   ensureColumnExists('invoices', 'invoice_language', "TEXT DEFAULT 'en'");
   ensureColumnExists('invoices', 'paid_at', 'DATETIME');
   ensureColumnExists('invoices', 'completed_at', 'DATETIME');
+  ensureColumnExists('salary_payments', 'employee_id', 'INTEGER');
+  ensureColumnExists('salary_payments', 'invoice_id', 'INTEGER');
+
+  db.exec(`
+    CREATE INDEX IF NOT EXISTS idx_salary_payments_paid_at ON salary_payments(paid_at);
+    CREATE INDEX IF NOT EXISTS idx_salary_payments_employee ON salary_payments(employee_name);
+    CREATE INDEX IF NOT EXISTS idx_salary_payments_employee_id ON salary_payments(employee_id);
+    CREATE INDEX IF NOT EXISTS idx_salary_payments_invoice_id ON salary_payments(invoice_id);
+    CREATE INDEX IF NOT EXISTS idx_employees_active_name ON employees(active, name);
+  `);
+
+  db.exec(`
+    INSERT OR IGNORE INTO employees (name)
+    SELECT DISTINCT employee_name
+    FROM salary_payments
+    WHERE employee_name IS NOT NULL AND TRIM(employee_name) != '';
+
+    UPDATE salary_payments
+    SET employee_id = (
+      SELECT employees.id
+      FROM employees
+      WHERE employees.name = salary_payments.employee_name
+    )
+    WHERE employee_id IS NULL;
+  `);
 
   db.exec(`
     UPDATE invoice_items
@@ -564,8 +617,20 @@ function initializeDatabase() {
 
   db.exec(`
     UPDATE invoices
-    SET status = 'open'
-    WHERE status = 'sent';
+    SET status = 'paid',
+        paid = 1,
+        paid_at = COALESCE(paid_at, completed_at, updated_at, CURRENT_TIMESTAMP),
+        completed_at = COALESCE(completed_at, paid_at, updated_at, CURRENT_TIMESTAMP)
+    WHERE status IN ('sent', 'open', 'completed');
+  `);
+
+  db.exec(`
+    UPDATE invoices
+    SET status = 'paid',
+        paid = 1,
+        paid_at = COALESCE(paid_at, completed_at, updated_at, CURRENT_TIMESTAMP),
+        completed_at = COALESCE(completed_at, paid_at, updated_at, CURRENT_TIMESTAMP)
+    WHERE paid = 1 AND status != 'paid';
   `);
 
   // Initialize business settings if empty
@@ -1197,6 +1262,8 @@ ipcMain.handle('data:export', async (event) => {
     const expenses = db.prepare('SELECT * FROM expenses').all();
     const income = db.prepare('SELECT * FROM income').all();
     const recurringExpenses = db.prepare('SELECT * FROM recurring_expenses').all();
+    const employees = db.prepare('SELECT * FROM employees').all();
+    const salaryPayments = db.prepare('SELECT * FROM salary_payments').all();
     const auditLog = db.prepare('SELECT * FROM audit_log').all();
 
     const logoAsset =
@@ -1226,6 +1293,8 @@ ipcMain.handle('data:export', async (event) => {
       expenses,
       income,
       recurringExpenses,
+      employees,
+      salaryPayments,
       auditLog,
       assets: {
         logo: logoAsset,
@@ -1256,6 +1325,8 @@ ipcMain.handle('data:import', async (event, jsonData, shouldClear = false) => {
       db.prepare('DELETE FROM expenses').run();
       db.prepare('DELETE FROM income').run();
       db.prepare('DELETE FROM recurring_expenses').run();
+      db.prepare('DELETE FROM salary_payments').run();
+      db.prepare('DELETE FROM employees').run();
       db.prepare('DELETE FROM audit_log').run();
       db.prepare('DELETE FROM products').run();
       db.prepare('DELETE FROM business_settings').run();
@@ -1351,15 +1422,17 @@ ipcMain.handle('data:import', async (event, jsonData, shouldClear = false) => {
           invoice.due_date,
           invoice.due_upon_receipt ?? 1,
           invoice.invoice_language || 'en',
-          invoice.status,
+          ['paid', 'open', 'completed', 'sent'].includes(invoice.status)
+            ? 'paid'
+            : 'draft',
           invoice.notes,
           invoice.subtotal,
           invoice.tax_amount,
           invoice.tax_rate,
           invoice.total,
-          invoice.paid,
-          invoice.paid_at ?? null,
-          invoice.completed_at ?? null,
+          ['paid', 'open', 'completed', 'sent'].includes(invoice.status) || invoice.paid ? 1 : 0,
+          invoice.paid_at ?? invoice.completed_at ?? null,
+          invoice.completed_at ?? invoice.paid_at ?? null,
           invoice.payment_method,
           restoredInvoicePdfPaths.get(invoice.id) || null,
           invoice.created_at,
@@ -1463,6 +1536,54 @@ ipcMain.handle('data:import', async (event, jsonData, shouldClear = false) => {
           recurringExpense.active ?? 1,
           recurringExpense.created_at,
           recurringExpense.updated_at,
+        );
+      }
+    }
+
+    // Import salary payments
+    if (importData.employees) {
+      const insertEmployee = db.prepare(`
+        INSERT OR REPLACE INTO employees
+        (id, name, phone, role, default_pay_type, default_rate, active, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      for (const employee of importData.employees) {
+        insertEmployee.run(
+          employee.id,
+          employee.name,
+          employee.phone ?? '',
+          employee.role ?? '',
+          employee.default_pay_type || 'daily',
+          employee.default_rate ?? 0,
+          employee.active ?? 1,
+          employee.created_at,
+          employee.updated_at,
+        );
+      }
+    }
+
+    if (importData.salaryPayments) {
+      const insertSalaryPayment = db.prepare(`
+        INSERT OR REPLACE INTO salary_payments
+        (id, employee_id, invoice_id, employee_name, pay_type, job_reference, amount, paid_at, payment_method, notes, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      for (const payment of importData.salaryPayments) {
+        insertSalaryPayment.run(
+          payment.id,
+          payment.employee_id ?? null,
+          payment.invoice_id ?? null,
+          payment.employee_name,
+          payment.pay_type || 'daily',
+          payment.job_reference ?? '',
+          payment.amount,
+          payment.paid_at,
+          payment.payment_method ?? '',
+          payment.notes ?? '',
+          payment.created_at,
+          payment.updated_at,
         );
       }
     }

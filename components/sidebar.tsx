@@ -16,6 +16,7 @@ import {
   DollarSign,
   ClipboardList,
   BookUser,
+  HandCoins,
 } from 'lucide-react';
 
 type Page =
@@ -26,6 +27,7 @@ type Page =
   | 'invoices'
   | 'active-invoices'
   | 'invoice-history'
+  | 'salaries'
   | 'revenue-tracking'
   | 'expenses-income'
   | 'customer-contacts';
@@ -45,6 +47,7 @@ const Sidebar: React.FC<SidebarProps> = ({ currentPage, onPageChange, lowStockCo
     { id: 'invoice-history' as Page, label: t('invoiceHistory'), icon: History },
     { id: 'customer-contacts' as Page, label: t('customerContacts'), icon: BookUser },
     { id: 'inventory' as Page, label: t('inventory'), icon: Package, badge: lowStockCount > 0 ? lowStockCount : null },
+    { id: 'salaries' as Page, label: t('salaries'), icon: HandCoins },
     { id: 'expenses-income' as Page, label: t('expensesIncome'), icon: DollarSign },
     { id: 'revenue-tracking' as Page, label: t('revenueTracking'), icon: TrendingUp },
     { id: 'business-settings' as Page, label: t('businessSettings'), icon: Building2 },

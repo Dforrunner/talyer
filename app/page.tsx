@@ -16,6 +16,7 @@ type Page =
   | 'invoices'
   | 'active-invoices'
   | 'invoice-history'
+  | 'salaries'
   | 'revenue-tracking'
   | 'expenses-income'
   | 'customer-contacts';
@@ -62,6 +63,10 @@ const ActiveInvoicesPage = dynamic(() => import('@/components/pages/active-invoi
 });
 
 const InvoiceHistoryPage = dynamic(() => import('@/components/pages/invoice-history'), {
+  loading: () => <PageLoadingShell />,
+});
+
+const SalariesPage = dynamic(() => import('@/components/pages/salaries'), {
   loading: () => <PageLoadingShell />,
 });
 
@@ -213,6 +218,8 @@ export default function Home() {
         return <CustomerContactsPage onUseContact={openNewInvoice} />;
       case 'invoice-history':
         return <InvoiceHistoryPage onEditInvoice={editInvoice} />;
+      case 'salaries':
+        return <SalariesPage />;
       case 'revenue-tracking':
         return <RevenueTrackingPage />;
       case 'expenses-income':

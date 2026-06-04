@@ -5,7 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useAppDialog } from '@/hooks/use-app-dialog';
-import { PenSquare, CarFront, Trash2 } from 'lucide-react';
+import { CheckCircle, PenSquare, CarFront, Trash2 } from 'lucide-react';
 import { db } from '@/lib/db';
 import { useLanguage } from '@/hooks/use-language';
 import { normalizePhilippinePhone } from '@/lib/phone-utils';
@@ -169,6 +169,29 @@ const ActiveInvoicesPage: React.FC<ActiveInvoicesPageProps> = ({
     }
   };
 
+  const handleMarkAsPaid = async (invoiceId: number) => {
+    try {
+      await db.run(
+        `UPDATE invoices
+         SET status = 'paid',
+             paid = 1,
+             paid_at = COALESCE(paid_at, CURRENT_TIMESTAMP),
+             completed_at = COALESCE(completed_at, CURRENT_TIMESTAMP),
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = ?`,
+        [invoiceId],
+      );
+
+      await loadInvoices();
+    } catch (error) {
+      console.error('[ActiveInvoices] Error marking invoice as paid:', error);
+      await showAlert({
+        title: t('errorUpdatingInvoice'),
+        confirmLabel: t('close'),
+      });
+    }
+  };
+
   return (
     <div className="p-8 space-y-6">
       <div className="flex items-center justify-between gap-4">
@@ -266,6 +289,14 @@ const ActiveInvoicesPage: React.FC<ActiveInvoicesPageProps> = ({
                 >
                   <PenSquare className="w-4 h-4" />
                   {t('continueWorking')}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => void handleMarkAsPaid(invoice.id)}
+                  className="gap-2 text-green-700 hover:text-green-800"
+                >
+                  <CheckCircle className="w-4 h-4" />
+                  {t('markAsPaid')}
                 </Button>
                 <Button
                   variant="outline"
