@@ -44,18 +44,128 @@ function encodeFileToBase64(filepath) {
   return fs.readFileSync(filepath).toString('base64');
 }
 
-function restoreBase64File(subdir, fileName, base64Data) {
-  const targetPath = buildManagedFilePath(subdir, fileName);
-  fs.writeFileSync(targetPath, Buffer.from(base64Data, 'base64'));
-  return targetPath;
+function copyDirectoryIfExists(source, target) {
+  if (!fs.existsSync(source)) {
+    return;
+  }
+
+  fs.cpSync(source, target, {
+    recursive: true,
+    force: false,
+    errorOnExist: false,
+  });
 }
 
-function clearManagedDirectory(subdir) {
-  const dir = path.join(app.getPath('userData'), subdir);
-  if (fs.existsSync(dir)) {
-    fs.rmSync(dir, { recursive: true, force: true });
+function createPreUpdateBackup(dbPath, fromVersion = 'unknown', toVersion = app.getVersion()) {
+  const userDataPath = app.getPath('userData');
+  const timestamp = new Date()
+    .toISOString()
+    .replace(/[:.]/g, '-')
+    .slice(0, 19);
+  const backupRoot = path.join(
+    userDataPath,
+    'backups',
+    'pre-update',
+    `${timestamp}-from-${sanitizeFileName(fromVersion)}-to-${sanitizeFileName(toVersion)}`,
+  );
+
+  ensureDirectory(backupRoot);
+
+  if (fs.existsSync(dbPath)) {
+    fs.copyFileSync(dbPath, path.join(backupRoot, path.basename(dbPath)));
   }
-  ensureDirectory(dir);
+
+  copyDirectoryIfExists(
+    path.join(userDataPath, 'logos'),
+    path.join(backupRoot, 'logos'),
+  );
+  copyDirectoryIfExists(
+    path.join(userDataPath, 'invoices'),
+    path.join(backupRoot, 'invoices'),
+  );
+
+  fs.writeFileSync(
+    path.join(backupRoot, 'README.txt'),
+    [
+      'ShopFlow automatic pre-update backup',
+      `Created: ${new Date().toISOString()}`,
+      `From app version: ${fromVersion}`,
+      `To app version: ${toVersion}`,
+      '',
+      'Restore note: close ShopFlow, copy shopflow.db back to the app data folder,',
+      'and copy the logos/ and invoices/ folders back if they are needed.',
+    ].join('\n'),
+  );
+
+  return backupRoot;
+}
+
+function tableExists(tableName) {
+  const row = db.prepare(
+    "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+  ).get(tableName);
+  return Boolean(row);
+}
+
+function getMetadataValue(key) {
+  if (!tableExists('app_metadata')) {
+    return null;
+  }
+
+  const row = db.prepare('SELECT value FROM app_metadata WHERE key = ?').get(key);
+  return row?.value || null;
+}
+
+function setMetadataValue(key, value) {
+  db.prepare(
+    `INSERT INTO app_metadata (key, value, updated_at)
+     VALUES (?, ?, CURRENT_TIMESTAMP)
+     ON CONFLICT(key) DO UPDATE SET
+       value = excluded.value,
+       updated_at = CURRENT_TIMESTAMP`,
+  ).run(key, value);
+}
+
+function runMigration(id, description, migrationFn) {
+  const existing = db.prepare(
+    'SELECT success FROM schema_migrations WHERE id = ?',
+  ).get(id);
+
+  if (existing?.success === 1) {
+    return;
+  }
+
+  const run = db.transaction(() => {
+    migrationFn();
+    db.prepare(
+      `INSERT INTO schema_migrations (
+         id, description, app_version, success, details, ran_at
+       ) VALUES (?, ?, ?, 1, NULL, CURRENT_TIMESTAMP)
+       ON CONFLICT(id) DO UPDATE SET
+         description = excluded.description,
+         app_version = excluded.app_version,
+         success = 1,
+         details = NULL,
+         ran_at = CURRENT_TIMESTAMP`,
+    ).run(id, description, app.getVersion());
+  });
+
+  try {
+    run();
+  } catch (error) {
+    db.prepare(
+      `INSERT INTO schema_migrations (
+         id, description, app_version, success, details, ran_at
+       ) VALUES (?, ?, ?, 0, ?, CURRENT_TIMESTAMP)
+       ON CONFLICT(id) DO UPDATE SET
+         description = excluded.description,
+         app_version = excluded.app_version,
+         success = 0,
+         details = excluded.details,
+         ran_at = CURRENT_TIMESTAMP`,
+    ).run(id, description, app.getVersion(), error?.message || String(error));
+    throw error;
+  }
 }
 
 function decodeFileData(data) {
@@ -388,14 +498,42 @@ function initializeAutoUpdater() {
 // Initialize database
 function initializeDatabase() {
   const dbPath = resolveDatabasePath();
+  const dbFileExisted = fs.existsSync(dbPath);
 
   db = new Database(dbPath);
   
   // Enable foreign keys
   db.pragma('foreign_keys = ON');
+
+  let preUpdateBackupPath = null;
+  if (dbFileExisted && fs.statSync(dbPath).size > 0) {
+    const lastOpenedVersion = getMetadataValue('last_opened_app_version');
+    if (lastOpenedVersion !== app.getVersion()) {
+      preUpdateBackupPath = createPreUpdateBackup(
+        dbPath,
+        lastOpenedVersion || 'unknown',
+        app.getVersion(),
+      );
+    }
+  }
   
   // Create tables if they don't exist
   db.exec(`
+    CREATE TABLE IF NOT EXISTS app_metadata (
+      key TEXT PRIMARY KEY,
+      value TEXT,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
+    CREATE TABLE IF NOT EXISTS schema_migrations (
+      id TEXT PRIMARY KEY,
+      description TEXT NOT NULL,
+      app_version TEXT,
+      success INTEGER NOT NULL DEFAULT 0,
+      details TEXT,
+      ran_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+
     CREATE TABLE IF NOT EXISTS business_settings (
       id INTEGER PRIMARY KEY,
       business_name TEXT,
@@ -493,6 +631,22 @@ function initializeDatabase() {
       FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS stock_adjustments (
+      id INTEGER PRIMARY KEY,
+      product_id INTEGER NOT NULL,
+      invoice_id INTEGER,
+      adjustment_type TEXT NOT NULL,
+      quantity_short REAL NOT NULL DEFAULT 0,
+      recorded_stock_before REAL NOT NULL DEFAULT 0,
+      recorded_stock_after REAL NOT NULL DEFAULT 0,
+      quantity_used REAL NOT NULL DEFAULT 0,
+      note TEXT,
+      resolved INTEGER NOT NULL DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (product_id) REFERENCES products(id),
+      FOREIGN KEY (invoice_id) REFERENCES invoices(id) ON DELETE CASCADE
+    );
+
     CREATE TABLE IF NOT EXISTS expenses (
       id INTEGER PRIMARY KEY,
       category TEXT NOT NULL,
@@ -567,71 +721,92 @@ function initializeDatabase() {
     CREATE INDEX IF NOT EXISTS idx_invoices_date ON invoices(invoice_date);
     CREATE INDEX IF NOT EXISTS idx_invoice_items_invoice ON invoice_items(invoice_id);
     CREATE INDEX IF NOT EXISTS idx_audit_log_entity ON audit_log(entity_type, entity_id);
+    CREATE INDEX IF NOT EXISTS idx_stock_adjustments_product ON stock_adjustments(product_id, resolved);
+    CREATE INDEX IF NOT EXISTS idx_stock_adjustments_invoice ON stock_adjustments(invoice_id);
   `);
 
-  ensureColumnExists('invoice_items', 'cost_price', 'REAL');
-  ensureColumnExists('invoices', 'vehicle_make', 'TEXT');
-  ensureColumnExists('invoices', 'customer_address', 'TEXT');
-  ensureColumnExists('invoices', 'vehicle_model', 'TEXT');
-  ensureColumnExists('invoices', 'vehicle_year', 'TEXT');
-  ensureColumnExists('invoices', 'license_plate', 'TEXT');
-  ensureColumnExists('invoices', 'due_upon_receipt', 'INTEGER DEFAULT 1');
-  ensureColumnExists('invoices', 'invoice_language', "TEXT DEFAULT 'en'");
-  ensureColumnExists('invoices', 'paid_at', 'DATETIME');
-  ensureColumnExists('invoices', 'completed_at', 'DATETIME');
-  ensureColumnExists('salary_payments', 'employee_id', 'INTEGER');
-  ensureColumnExists('salary_payments', 'invoice_id', 'INTEGER');
+  try {
+    runMigration(
+      '2026-06-04-legacy-schema-and-status-normalization',
+      'Add missing invoice, salary, and stock audit fields; backfill legacy rows safely.',
+      () => {
+        ensureColumnExists('invoice_items', 'cost_price', 'REAL');
+        ensureColumnExists('invoices', 'vehicle_make', 'TEXT');
+        ensureColumnExists('invoices', 'customer_address', 'TEXT');
+        ensureColumnExists('invoices', 'vehicle_model', 'TEXT');
+        ensureColumnExists('invoices', 'vehicle_year', 'TEXT');
+        ensureColumnExists('invoices', 'license_plate', 'TEXT');
+        ensureColumnExists('invoices', 'due_upon_receipt', 'INTEGER DEFAULT 1');
+        ensureColumnExists('invoices', 'invoice_language', "TEXT DEFAULT 'en'");
+        ensureColumnExists('invoices', 'paid_at', 'DATETIME');
+        ensureColumnExists('invoices', 'completed_at', 'DATETIME');
+        ensureColumnExists('salary_payments', 'employee_id', 'INTEGER');
+        ensureColumnExists('salary_payments', 'invoice_id', 'INTEGER');
+        ensureColumnExists(
+          'stock_adjustments',
+          'recorded_stock_after',
+          'REAL NOT NULL DEFAULT 0',
+        );
 
-  db.exec(`
-    CREATE INDEX IF NOT EXISTS idx_salary_payments_paid_at ON salary_payments(paid_at);
-    CREATE INDEX IF NOT EXISTS idx_salary_payments_employee ON salary_payments(employee_name);
-    CREATE INDEX IF NOT EXISTS idx_salary_payments_employee_id ON salary_payments(employee_id);
-    CREATE INDEX IF NOT EXISTS idx_salary_payments_invoice_id ON salary_payments(invoice_id);
-    CREATE INDEX IF NOT EXISTS idx_employees_active_name ON employees(active, name);
-  `);
+        db.exec(`
+          CREATE INDEX IF NOT EXISTS idx_salary_payments_paid_at ON salary_payments(paid_at);
+          CREATE INDEX IF NOT EXISTS idx_salary_payments_employee ON salary_payments(employee_name);
+          CREATE INDEX IF NOT EXISTS idx_salary_payments_employee_id ON salary_payments(employee_id);
+          CREATE INDEX IF NOT EXISTS idx_salary_payments_invoice_id ON salary_payments(invoice_id);
+          CREATE INDEX IF NOT EXISTS idx_employees_active_name ON employees(active, name);
+          CREATE INDEX IF NOT EXISTS idx_stock_adjustments_product ON stock_adjustments(product_id, resolved);
+          CREATE INDEX IF NOT EXISTS idx_stock_adjustments_invoice ON stock_adjustments(invoice_id);
 
-  db.exec(`
-    INSERT OR IGNORE INTO employees (name)
-    SELECT DISTINCT employee_name
-    FROM salary_payments
-    WHERE employee_name IS NOT NULL AND TRIM(employee_name) != '';
+          INSERT OR IGNORE INTO employees (name)
+          SELECT DISTINCT employee_name
+          FROM salary_payments
+          WHERE employee_name IS NOT NULL AND TRIM(employee_name) != '';
 
-    UPDATE salary_payments
-    SET employee_id = (
-      SELECT employees.id
-      FROM employees
-      WHERE employees.name = salary_payments.employee_name
-    )
-    WHERE employee_id IS NULL;
-  `);
+          UPDATE salary_payments
+          SET employee_id = (
+            SELECT employees.id
+            FROM employees
+            WHERE employees.name = salary_payments.employee_name
+          )
+          WHERE employee_id IS NULL;
 
-  db.exec(`
-    UPDATE invoice_items
-    SET cost_price = (
-      SELECT p.cost_price
-      FROM products p
-      WHERE p.id = invoice_items.product_id
-    )
-    WHERE product_id IS NOT NULL AND cost_price IS NULL;
-  `);
+          UPDATE invoice_items
+          SET cost_price = (
+            SELECT p.cost_price
+            FROM products p
+            WHERE p.id = invoice_items.product_id
+          )
+          WHERE product_id IS NOT NULL AND cost_price IS NULL;
 
-  db.exec(`
-    UPDATE invoices
-    SET status = 'paid',
-        paid = 1,
-        paid_at = COALESCE(paid_at, completed_at, updated_at, CURRENT_TIMESTAMP),
-        completed_at = COALESCE(completed_at, paid_at, updated_at, CURRENT_TIMESTAMP)
-    WHERE status IN ('sent', 'open', 'completed');
-  `);
+          UPDATE invoices
+          SET status = 'paid',
+              paid = 1,
+              paid_at = COALESCE(paid_at, completed_at, updated_at, CURRENT_TIMESTAMP),
+              completed_at = COALESCE(completed_at, paid_at, updated_at, CURRENT_TIMESTAMP)
+          WHERE status IN ('sent', 'open', 'completed');
 
-  db.exec(`
-    UPDATE invoices
-    SET status = 'paid',
-        paid = 1,
-        paid_at = COALESCE(paid_at, completed_at, updated_at, CURRENT_TIMESTAMP),
-        completed_at = COALESCE(completed_at, paid_at, updated_at, CURRENT_TIMESTAMP)
-    WHERE paid = 1 AND status != 'paid';
-  `);
+          UPDATE invoices
+          SET status = 'paid',
+              paid = 1,
+              paid_at = COALESCE(paid_at, completed_at, updated_at, CURRENT_TIMESTAMP),
+              completed_at = COALESCE(completed_at, paid_at, updated_at, CURRENT_TIMESTAMP)
+          WHERE paid = 1 AND status != 'paid';
+        `);
+      },
+    );
+  } catch (error) {
+    const message = [
+      'ShopFlow could not finish updating the local database.',
+      error?.message || String(error),
+      preUpdateBackupPath
+        ? `A backup was created before the update at:\n${preUpdateBackupPath}`
+        : null,
+      'Close ShopFlow and restore that backup if the app cannot open.',
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+    throw new Error(message, { cause: error });
+  }
 
   // Initialize business settings if empty
   const settingsCount = db.prepare('SELECT COUNT(*) as count FROM business_settings').get();
@@ -641,6 +816,12 @@ function initializeDatabase() {
       VALUES (?, ?, ?)
     `).run('My Shop', 'PHP', 'en');
   }
+
+  if (preUpdateBackupPath) {
+    setMetadataValue('last_pre_update_backup_path', preUpdateBackupPath);
+  }
+  setMetadataValue('last_opened_app_version', app.getVersion());
+  setMetadataValue('backup_schema_version', '1.4.0');
 }
 
 // IPC Handlers
@@ -1264,6 +1445,7 @@ ipcMain.handle('data:export', async (event) => {
     const recurringExpenses = db.prepare('SELECT * FROM recurring_expenses').all();
     const employees = db.prepare('SELECT * FROM employees').all();
     const salaryPayments = db.prepare('SELECT * FROM salary_payments').all();
+    const stockAdjustments = db.prepare('SELECT * FROM stock_adjustments').all();
     const auditLog = db.prepare('SELECT * FROM audit_log').all();
 
     const logoAsset =
@@ -1283,7 +1465,9 @@ ipcMain.handle('data:export', async (event) => {
       }));
 
     const exportData = {
-      version: '1.3.0',
+      version: '1.4.0',
+      backupSchemaVersion: '1.4.0',
+      appVersion: app.getVersion(),
       exportDate: new Date().toISOString(),
       businessSettings,
       products,
@@ -1295,6 +1479,7 @@ ipcMain.handle('data:export', async (event) => {
       recurringExpenses,
       employees,
       salaryPayments,
+      stockAdjustments,
       auditLog,
       assets: {
         logo: logoAsset,
@@ -1310,15 +1495,164 @@ ipcMain.handle('data:export', async (event) => {
 });
 
 ipcMain.handle('data:import', async (event, jsonData, shouldClear = false) => {
+  let assetStageDir = null;
+  let assetRollbackDir = null;
+  let restoreAssetRollback = () => {};
+
   try {
     const importData = JSON.parse(jsonData);
     
-    if (!['1.0.0', '1.1.0', '1.2.0', '1.3.0'].includes(importData.version)) {
+    if (!['1.0.0', '1.1.0', '1.2.0', '1.3.0', '1.4.0'].includes(importData.version)) {
       throw new Error('Invalid export file version');
     }
 
+    const expectedArrays = [
+      'businessSettings',
+      'products',
+      'invoices',
+      'invoiceItems',
+      'lowStockAlerts',
+      'expenses',
+      'income',
+      'recurringExpenses',
+      'employees',
+      'salaryPayments',
+      'stockAdjustments',
+      'auditLog',
+    ];
+
+    for (const key of expectedArrays) {
+      if (importData[key] !== undefined && !Array.isArray(importData[key])) {
+        throw new Error(`Invalid export file: ${key} must be a list`);
+      }
+    }
+
+    if (shouldClear) {
+      createPreUpdateBackup(resolveDatabasePath(), `before-import-${importData.version}`, app.getVersion());
+    }
+
+    const stagedAssets = [];
+    const stageAsset = (subdir, fileName, base64Data) => {
+      if (!assetStageDir) {
+        assetStageDir = path.join(
+          app.getPath('userData'),
+          'import-staging',
+          new Date().toISOString().replace(/[:.]/g, '-'),
+        );
+      }
+
+      const safeFileName = sanitizeFileName(fileName);
+      const stagedDir = path.join(assetStageDir, subdir);
+      const stagedPath = path.join(stagedDir, safeFileName);
+      const finalDir = getManagedDirectory(subdir);
+      const extension = path.extname(safeFileName);
+      const baseName = path.basename(safeFileName, extension);
+      let finalPath = path.join(finalDir, safeFileName);
+      let suffix = 1;
+
+      while (
+        !shouldClear &&
+        (fs.existsSync(finalPath) ||
+          stagedAssets.some((asset) => asset.finalPath === finalPath))
+      ) {
+        finalPath = path.join(finalDir, `${baseName}-${suffix}${extension}`);
+        suffix += 1;
+      }
+
+      ensureDirectory(stagedDir);
+      fs.writeFileSync(stagedPath, Buffer.from(base64Data, 'base64'));
+      stagedAssets.push({ stagedPath, finalPath });
+
+      return finalPath;
+    };
+
+    const managedAssetSubdirs = ['logos', 'invoices'];
+    const prepareReplaceAssetDirectories = () => {
+      if (!shouldClear) {
+        return;
+      }
+
+      assetRollbackDir = path.join(
+        app.getPath('userData'),
+        'import-rollback',
+        new Date().toISOString().replace(/[:.]/g, '-'),
+      );
+      ensureDirectory(assetRollbackDir);
+
+      for (const subdir of managedAssetSubdirs) {
+        const currentDir = path.join(app.getPath('userData'), subdir);
+        const rollbackDir = path.join(assetRollbackDir, subdir);
+
+        if (fs.existsSync(currentDir)) {
+          fs.renameSync(currentDir, rollbackDir);
+        }
+
+        ensureDirectory(currentDir);
+      }
+    };
+
+    restoreAssetRollback = () => {
+      if (!assetRollbackDir || !fs.existsSync(assetRollbackDir)) {
+        return;
+      }
+
+      for (const subdir of managedAssetSubdirs) {
+        const currentDir = path.join(app.getPath('userData'), subdir);
+        const rollbackDir = path.join(assetRollbackDir, subdir);
+
+        if (fs.existsSync(currentDir)) {
+          fs.rmSync(currentDir, { recursive: true, force: true });
+        }
+
+        if (fs.existsSync(rollbackDir)) {
+          fs.renameSync(rollbackDir, currentDir);
+        }
+      }
+    };
+
+    const removeAssetRollback = () => {
+      if (assetRollbackDir && fs.existsSync(assetRollbackDir)) {
+        fs.rmSync(assetRollbackDir, { recursive: true, force: true });
+      }
+    };
+
+    const copyStagedAssets = () => {
+      for (const asset of stagedAssets) {
+        ensureDirectory(path.dirname(asset.finalPath));
+        fs.copyFileSync(asset.stagedPath, asset.finalPath);
+      }
+    };
+
+    const restoredLogoPath =
+      importData.assets?.logo?.data && importData.assets?.logo?.fileName
+        ? stageAsset(
+            'logos',
+            importData.assets.logo.fileName,
+            importData.assets.logo.data,
+          )
+        : null;
+
+    const restoredInvoicePdfPaths = new Map();
+    if (Array.isArray(importData.assets?.invoicePdfs)) {
+      for (const pdfAsset of importData.assets.invoicePdfs) {
+        if (!pdfAsset?.invoiceId || !pdfAsset?.fileName || !pdfAsset?.data) {
+          continue;
+        }
+
+        restoredInvoicePdfPaths.set(
+          pdfAsset.invoiceId,
+          stageAsset('invoices', pdfAsset.fileName, pdfAsset.data),
+        );
+      }
+    }
+
+    prepareReplaceAssetDirectories();
+
+    const importTransaction = db.transaction(() => {
+
     if (shouldClear) {
       // Clear existing data
+      db.prepare('DELETE FROM stock_adjustments').run();
       db.prepare('DELETE FROM low_stock_alerts').run();
       db.prepare('DELETE FROM invoice_items').run();
       db.prepare('DELETE FROM invoices').run();
@@ -1330,33 +1664,6 @@ ipcMain.handle('data:import', async (event, jsonData, shouldClear = false) => {
       db.prepare('DELETE FROM audit_log').run();
       db.prepare('DELETE FROM products').run();
       db.prepare('DELETE FROM business_settings').run();
-      clearManagedDirectory('logos');
-      clearManagedDirectory('invoices');
-    }
-
-    let restoredLogoPath = null;
-    if (importData.assets?.logo?.data && importData.assets?.logo?.fileName) {
-      restoredLogoPath = restoreBase64File(
-        'logos',
-        importData.assets.logo.fileName,
-        importData.assets.logo.data,
-      );
-    }
-
-    const restoredInvoicePdfPaths = new Map();
-    if (Array.isArray(importData.assets?.invoicePdfs)) {
-      for (const pdfAsset of importData.assets.invoicePdfs) {
-        if (!pdfAsset?.invoiceId || !pdfAsset?.fileName || !pdfAsset?.data) {
-          continue;
-        }
-
-        const restoredPdfPath = restoreBase64File(
-          'invoices',
-          pdfAsset.fileName,
-          pdfAsset.data,
-        );
-        restoredInvoicePdfPaths.set(pdfAsset.invoiceId, restoredPdfPath);
-      }
     }
 
     // Import business settings
@@ -1588,6 +1895,30 @@ ipcMain.handle('data:import', async (event, jsonData, shouldClear = false) => {
       }
     }
 
+    if (importData.stockAdjustments) {
+      const insertStockAdjustment = db.prepare(`
+        INSERT OR REPLACE INTO stock_adjustments
+        (id, product_id, invoice_id, adjustment_type, quantity_short, recorded_stock_before, recorded_stock_after, quantity_used, note, resolved, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+
+      for (const adjustment of importData.stockAdjustments) {
+        insertStockAdjustment.run(
+          adjustment.id,
+          adjustment.product_id,
+          adjustment.invoice_id ?? null,
+          adjustment.adjustment_type || 'invoice_shortage',
+          adjustment.quantity_short ?? 0,
+          adjustment.recorded_stock_before ?? 0,
+          adjustment.recorded_stock_after ?? 0,
+          adjustment.quantity_used ?? 0,
+          adjustment.note ?? '',
+          adjustment.resolved ?? 0,
+          adjustment.created_at,
+        );
+      }
+    }
+
     // Import audit log
     if (importData.auditLog) {
       const insertAuditLog = db.prepare(`
@@ -1608,8 +1939,26 @@ ipcMain.handle('data:import', async (event, jsonData, shouldClear = false) => {
       }
     }
 
+      copyStagedAssets();
+    });
+
+    importTransaction();
+    removeAssetRollback();
+
+    if (assetStageDir && fs.existsSync(assetStageDir)) {
+      fs.rmSync(assetStageDir, { recursive: true, force: true });
+    }
+
     return { success: true, message: 'Data imported successfully', restartRequired: true };
   } catch (error) {
+    if (shouldClear) {
+      restoreAssetRollback();
+    }
+
+    if (assetStageDir && fs.existsSync(assetStageDir)) {
+      fs.rmSync(assetStageDir, { recursive: true, force: true });
+    }
+
     console.error('Import error:', error);
     throw error;
   }
@@ -1674,10 +2023,20 @@ async function createWindow() {
 }
 
 app.on('ready', async () => {
-  migrateLegacyUserData();
-  initializeDatabase();
-  initializeAutoUpdater();
-  await createWindow();
+  try {
+    migrateLegacyUserData();
+    initializeDatabase();
+    initializeAutoUpdater();
+    await createWindow();
+  } catch (error) {
+    const message = error?.message || String(error);
+    console.error('Startup error:', error);
+    dialog.showErrorBox(
+      'ShopFlow could not open',
+      `${message}\n\nYour existing data was not intentionally deleted. If this happened during an update, use the backup path shown above to restore the previous data.`,
+    );
+    app.quit();
+  }
 });
 
 app.on('window-all-closed', () => {

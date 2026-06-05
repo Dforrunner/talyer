@@ -205,7 +205,7 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onLowStockUpdate }) => {
       {/* Products Table */}
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[980px]">
+          <table className="compact-data-table w-full min-w-[820px]">
             <thead className="bg-muted/50 border-b border-border">
               <tr>
                 <th className="px-6 py-3 text-left">
@@ -283,7 +283,7 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onLowStockUpdate }) => {
                     align="right"
                   />
                 </th>
-                <th className="w-px px-6 py-3 text-right text-sm font-semibold whitespace-nowrap">{t('actions')}</th>
+                <th className="table-action-column px-6 py-3 text-right text-sm font-semibold whitespace-nowrap">{t('actions')}</th>
               </tr>
             </thead>
             <tbody>
@@ -325,7 +325,7 @@ const InventoryPage: React.FC<InventoryPageProps> = ({ onLowStockUpdate }) => {
                       <td className={`px-6 py-4 text-sm text-right font-semibold whitespace-nowrap ${isLowStock ? 'text-destructive' : ''}`}>
                         {product.quantity_in_stock} {product.unit}
                       </td>
-                      <td className="px-6 py-4 text-right whitespace-nowrap">
+                      <td className="table-action-column px-6 py-4 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-2">
                           <Button
                             variant="ghost"

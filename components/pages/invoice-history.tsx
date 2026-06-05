@@ -354,7 +354,7 @@ const InvoiceHistoryPage: React.FC<InvoiceHistoryPageProps> = ({
 
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1100px]">
+          <table className="compact-data-table w-full min-w-[940px]">
             <thead className="border-b border-border bg-muted/50">
               <tr>
                 <th className="w-px px-6 py-3 text-left whitespace-nowrap">
@@ -443,7 +443,7 @@ const InvoiceHistoryPage: React.FC<InvoiceHistoryPageProps> = ({
                     align="center"
                   />
                 </th>
-                <th className="w-px px-6 py-3 text-right text-sm font-semibold whitespace-nowrap">
+                <th className="table-action-column px-6 py-3 text-right text-sm font-semibold whitespace-nowrap">
                   {t('actions')}
                 </th>
               </tr>
@@ -509,7 +509,7 @@ const InvoiceHistoryPage: React.FC<InvoiceHistoryPageProps> = ({
                           {statusBadge.label}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-right whitespace-nowrap">
+                      <td className="table-action-column px-6 py-4 text-right whitespace-nowrap">
                         <div className="flex items-center justify-end gap-2">
                           <Button
                             variant="ghost"

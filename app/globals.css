@@ -134,3 +134,44 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer components {
+  .compact-data-table {
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  .compact-data-table th,
+  .compact-data-table td {
+    padding: 0.625rem 0.75rem !important;
+  }
+
+  .compact-data-table th {
+    font-size: 0.8125rem;
+  }
+
+  .compact-data-table td {
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+  }
+
+  .compact-data-table .table-action-column {
+    position: sticky;
+    right: 0;
+    z-index: 10;
+    width: 1%;
+    min-width: max-content;
+    white-space: nowrap;
+    background: var(--card);
+    box-shadow: -12px 0 16px -16px rgba(15, 23, 42, 0.55);
+  }
+
+  .compact-data-table thead .table-action-column {
+    z-index: 20;
+    background: var(--muted);
+  }
+
+  .compact-data-table tbody tr:hover .table-action-column {
+    background: var(--muted);
+  }
+}

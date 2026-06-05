@@ -26,6 +26,8 @@ interface ActiveInvoice {
   vehicle_model: string | null;
   vehicle_year: string | null;
   license_plate: string | null;
+  salary_payment_count: number;
+  salary_total: number;
 }
 
 interface ActiveInvoicesPageProps {
@@ -53,8 +55,16 @@ const ActiveInvoicesPage: React.FC<ActiveInvoicesPageProps> = ({
                 customer_address,
                 invoice_date, subtotal, total,
                 updated_at, created_at, vehicle_make, vehicle_model, vehicle_year,
-                license_plate
+                license_plate,
+                COALESCE(salary_summary.payment_count, 0) as salary_payment_count,
+                COALESCE(salary_summary.salary_total, 0) as salary_total
          FROM invoices
+         LEFT JOIN (
+           SELECT invoice_id, COUNT(*) as payment_count, SUM(amount) as salary_total
+           FROM salary_payments
+           WHERE invoice_id IS NOT NULL
+           GROUP BY invoice_id
+         ) salary_summary ON salary_summary.invoice_id = invoices.id
          WHERE status = 'draft'
          ORDER BY updated_at DESC, id DESC`,
       );
@@ -125,6 +135,7 @@ const ActiveInvoicesPage: React.FC<ActiveInvoicesPageProps> = ({
   const handleDeleteInvoice = async (invoiceId: number) => {
     const confirmed = await showConfirm({
       title: t('deleteDraftConfirm'),
+      description: t('deleteInvoiceRestoresStock'),
       confirmLabel: t('delete'),
       cancelLabel: t('cancel'),
       variant: 'destructive',
@@ -170,6 +181,17 @@ const ActiveInvoicesPage: React.FC<ActiveInvoicesPageProps> = ({
   };
 
   const handleMarkAsPaid = async (invoiceId: number) => {
+    const confirmed = await showConfirm({
+      title: t('completeJobConfirm'),
+      description: t('completeJobConfirmDesc'),
+      confirmLabel: t('markPaidComplete'),
+      cancelLabel: t('cancel'),
+    });
+
+    if (!confirmed) {
+      return;
+    }
+
     try {
       await db.run(
         `UPDATE invoices
@@ -249,7 +271,7 @@ const ActiveInvoicesPage: React.FC<ActiveInvoicesPageProps> = ({
                   )}
                 </div>
                 <span className="inline-flex rounded-full bg-blue-100 text-blue-700 px-3 py-1 text-xs font-medium">
-                  {t('draft')}
+                  {t('activeJob')}
                 </span>
               </div>
 
@@ -280,6 +302,15 @@ const ActiveInvoicesPage: React.FC<ActiveInvoicesPageProps> = ({
                   <p className="text-muted-foreground">{t('total')}</p>
                   <p className="font-semibold">{formatCurrency(invoice.total)}</p>
                 </div>
+                <div className="sm:col-span-2">
+                  <p className="text-muted-foreground">{t('paidWorkersForJob')}</p>
+                  <p className="font-medium">
+                    {formatCurrency(Number(invoice.salary_total) || 0)}
+                    {Number(invoice.salary_payment_count) > 0
+                      ? ` (${invoice.salary_payment_count})`
+                      : ''}
+                  </p>
+                </div>
               </div>
 
               <div className="flex flex-wrap gap-2 pt-2">
@@ -296,7 +327,7 @@ const ActiveInvoicesPage: React.FC<ActiveInvoicesPageProps> = ({
                   className="gap-2 text-green-700 hover:text-green-800"
                 >
                   <CheckCircle className="w-4 h-4" />
-                  {t('markAsPaid')}
+                  {t('markPaidComplete')}
                 </Button>
                 <Button
                   variant="outline"

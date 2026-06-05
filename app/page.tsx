@@ -2,7 +2,15 @@
 
 import dynamic from 'next/dynamic';
 import { useState, useEffect, type ReactNode } from 'react';
+import { Menu } from 'lucide-react';
 import Sidebar from '@/components/sidebar';
+import { Button } from '@/components/ui/button';
+import {
+  Sheet,
+  SheetContent,
+  SheetTitle,
+  SheetTrigger,
+} from '@/components/ui/sheet';
 import { useAppDialog } from '@/hooks/use-app-dialog';
 import { useLanguage } from '@/hooks/use-language';
 import { type CustomerContactFields, type CustomerContactPrefill } from '@/lib/customer-contacts';
@@ -89,6 +97,7 @@ export default function Home() {
   const [lowStockCount, setLowStockCount] = useState(0);
   const [selectedInvoiceId, setSelectedInvoiceId] = useState<number | null>(null);
   const [customerPrefill, setCustomerPrefill] = useState<CustomerContactPrefill | null>(null);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [invoiceEditorState, setInvoiceEditorState] = useState({
     hasUnsavedChanges: false,
     isSaving: false,
@@ -167,6 +176,7 @@ export default function Home() {
     }
 
     setCurrentPage(page);
+    setMobileNavOpen(false);
   };
 
   const editInvoice = async (invoiceId: number) => {
@@ -230,13 +240,32 @@ export default function Home() {
   };
 
   return (
-    <div className="flex h-screen bg-background">
-      <Sidebar 
-        currentPage={currentPage} 
-        onPageChange={changePage}
-        lowStockCount={lowStockCount}
-      />
-      <main className="flex-1 overflow-auto">
+    <div className="flex min-h-dvh bg-background">
+      <aside className="fixed inset-y-0 left-0 z-40 hidden w-64 md:block">
+        <Sidebar
+          currentPage={currentPage}
+          onPageChange={changePage}
+          lowStockCount={lowStockCount}
+        />
+      </aside>
+      <main className="min-w-0 flex-1 md:pl-64">
+        <div className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur md:hidden">
+          <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+            <SheetTrigger asChild>
+              <Button variant="outline" size="icon" aria-label={t('openNavigation')}>
+                <Menu className="h-5 w-5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-72 p-0">
+              <SheetTitle className="sr-only">{t('navigation')}</SheetTitle>
+              <Sidebar
+                currentPage={currentPage}
+                onPageChange={changePage}
+                lowStockCount={lowStockCount}
+              />
+            </SheetContent>
+          </Sheet>
+        </div>
         {renderPage()}
       </main>
     </div>

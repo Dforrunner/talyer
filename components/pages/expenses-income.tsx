@@ -823,7 +823,7 @@ const ExpensesIncomePage: React.FC = () => {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[860px]">
+            <table className="compact-data-table w-full min-w-[700px]">
               <thead className="bg-muted/50 border-b border-border">
                 <tr>
                   <th className="w-px px-6 py-3 text-left whitespace-nowrap">
@@ -875,7 +875,7 @@ const ExpensesIncomePage: React.FC = () => {
                       align="right"
                     />
                   </th>
-                  <th className="w-px px-6 py-3 text-right text-sm font-semibold whitespace-nowrap">
+                  <th className="table-action-column px-6 py-3 text-right text-sm font-semibold whitespace-nowrap">
                     {t('actions')}
                   </th>
                 </tr>
@@ -907,7 +907,7 @@ const ExpensesIncomePage: React.FC = () => {
                     <td className="px-6 py-4 text-sm text-right font-semibold whitespace-nowrap">
                       {formatCurrency(item.amount)}
                     </td>
-                    <td className="px-6 py-4 text-right whitespace-nowrap">
+                    <td className="table-action-column px-6 py-4 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-2">
                         <Button
                           variant="ghost"

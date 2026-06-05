@@ -117,7 +117,7 @@ const createEmptySalaryForm = (): SalaryFormState => ({
 });
 
 const SalariesPage: React.FC = () => {
-  const { formatCurrency, formatDate, t } = useLanguage();
+  const { formatCurrency, formatDate, formatMonth, t } = useLanguage();
   const { showAlert, showConfirm } = useAppDialog();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [invoiceOptions, setInvoiceOptions] = useState<SalaryInvoiceOption[]>([]);
@@ -587,14 +587,20 @@ const SalariesPage: React.FC = () => {
     (sum, payment) => sum + (Number(payment.amount) || 0),
     0,
   );
-  const monthlyTotal = payments
-    .filter((payment) => {
-      const today = new Date();
-      const month = String(today.getMonth() + 1).padStart(2, '0');
-      const prefix = `${today.getFullYear()}-${month}`;
-      return payment.paid_at.startsWith(prefix);
-    })
-    .reduce((sum, payment) => sum + (Number(payment.amount) || 0), 0);
+  const [selectedMonthYear, selectedMonthNumber] = selectedMonth
+    .split('-')
+    .map(Number);
+  const selectedMonthLabel =
+    Number.isFinite(selectedMonthYear) && Number.isFinite(selectedMonthNumber)
+      ? formatMonth(new Date(selectedMonthYear, selectedMonthNumber - 1, 1), {
+          month: 'long',
+          year: 'numeric',
+        })
+      : t('thisMonth');
+  const monthlyTotal = monthlyEmployeeTotals.reduce(
+    (sum, employee) => sum + (Number(employee.total_paid) || 0),
+    0,
+  );
 
   return (
     <div className="space-y-6 p-8">
@@ -643,7 +649,9 @@ const SalariesPage: React.FC = () => {
           <p className="mt-1 text-2xl font-bold">{formatCurrency(filteredTotal)}</p>
         </Card>
         <Card className="p-4">
-          <p className="text-sm text-muted-foreground">{t('thisMonth')}</p>
+          <p className="text-sm text-muted-foreground">
+            {t('salaryPayments')} - {selectedMonthLabel}
+          </p>
           <p className="mt-1 text-2xl font-bold">{formatCurrency(monthlyTotal)}</p>
         </Card>
         <Card className="p-4">
@@ -1018,7 +1026,7 @@ const SalariesPage: React.FC = () => {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[620px]">
+            <table className="compact-data-table w-full min-w-[520px]">
               <thead className="border-b border-border bg-muted/50">
                 <tr>
                   <th className="px-6 py-3 text-left text-sm font-semibold">
@@ -1110,7 +1118,7 @@ const SalariesPage: React.FC = () => {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[980px]">
+            <table className="compact-data-table w-full min-w-[820px]">
               <thead className="border-b border-border bg-muted/50">
                 <tr>
                   <th className="px-6 py-3 text-left">
@@ -1162,7 +1170,7 @@ const SalariesPage: React.FC = () => {
                       align="right"
                     />
                   </th>
-                  <th className="w-px px-6 py-3 text-right text-sm font-semibold whitespace-nowrap">
+                  <th className="table-action-column px-6 py-3 text-right text-sm font-semibold whitespace-nowrap">
                     {t('actions')}
                   </th>
                 </tr>
@@ -1201,7 +1209,7 @@ const SalariesPage: React.FC = () => {
                     <td className="px-6 py-4 text-right text-sm font-semibold whitespace-nowrap">
                       {formatCurrency(payment.amount)}
                     </td>
-                    <td className="px-6 py-4 text-right whitespace-nowrap">
+                    <td className="table-action-column px-6 py-4 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-2">
                         <Button
                           variant="ghost"

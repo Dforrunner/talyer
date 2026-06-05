@@ -39,7 +39,7 @@ interface UpdateState {
 
 const AppSettingsPage: React.FC = () => {
   const { language, setLanguage, t } = useLanguage();
-  const { showAlert } = useAppDialog();
+  const { showAlert, showConfirm } = useAppDialog();
   const [appVersion, setAppVersion] = useState<string>("");
   const [updateState, setUpdateState] = useState<UpdateState | null>(null);
   const [exporting, setExporting] = useState(false);
@@ -200,6 +200,21 @@ const AppSettingsPage: React.FC = () => {
             }
 
             JSON.parse(jsonData);
+
+            if (shouldClearData) {
+              const confirmed = await showConfirm({
+                title: t("replaceAllDataConfirm"),
+                description: t("replaceAllDataConfirmDesc"),
+                confirmLabel: t("importAndReplace"),
+                cancelLabel: t("cancel"),
+                variant: "destructive",
+              });
+
+              if (!confirmed) {
+                setImporting(false);
+                return;
+              }
+            }
 
             const result = await safeDataImport(jsonData, shouldClearData);
             if (!result?.success) {

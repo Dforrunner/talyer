@@ -6,7 +6,16 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PhoneInput } from "@/components/ui/phone-input";
-import { db, file } from "@/lib/db";
+import {
+  applyInvoiceStockUsage,
+  clampStockQuantity,
+  db,
+  ensureStockAdjustmentSchema,
+  file,
+  generateInvoiceNumber,
+  INVOICE_NUMBER_RETRY_LIMIT,
+  isInvoiceNumberCollisionError,
+} from "@/lib/db";
 import { useFilePreview } from "@/hooks/use-file-preview";
 import {
   defaultLanguage,
@@ -85,6 +94,20 @@ interface SaveInvoiceOptions {
   silent?: boolean;
 }
 
+interface SaveInvoiceResult {
+  id: number;
+  invoice: InvoiceForm;
+  stockShortages: StockShortageNotice[];
+}
+
+interface StockShortageNotice {
+  productId: number;
+  productName: string;
+  recordedStockBefore: number;
+  quantityUsed: number;
+  quantityShort: number;
+}
+
 const createItemId = () =>
   `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -145,6 +168,23 @@ const hasMeaningfulInvoiceContent = (invoice: InvoiceForm) =>
     invoice.notes.trim() ||
     invoice.items.length > 0,
   );
+
+const getProductQuantityMap = (items: Pick<InvoiceItem, "type" | "product_id" | "quantity">[]) => {
+  const quantities = new Map<number, number>();
+
+  for (const item of items) {
+    if (item.type !== "product" || !item.product_id) {
+      continue;
+    }
+
+    quantities.set(
+      item.product_id,
+      (quantities.get(item.product_id) || 0) + (Number(item.quantity) || 0),
+    );
+  }
+
+  return quantities;
+};
 
 const createEmptyInvoice = (defaultTaxRate = 0): InvoiceForm => {
   const today = getLocalDateInputValue();
@@ -298,6 +338,7 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
   ) => {
     try {
       setLoading(true);
+      await ensureStockAdjustmentSchema();
 
       const [productRows, settings] = await Promise.all([
         db.query(
@@ -547,21 +588,6 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
     });
   };
 
-  const generateInvoiceNumber = async (invoiceDate: string) => {
-    const count = await db.get(
-      "SELECT COUNT(*) as count FROM invoices WHERE DATE(invoice_date) = ?",
-      [invoiceDate],
-    );
-
-    const date = new Date(invoiceDate);
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    const sequence = String((count?.count || 0) + 1).padStart(4, "0");
-
-    return `INV-${year}${month}${day}-${sequence}`;
-  };
-
   const validateInvoice = async (
     targetStatus: "draft" | "paid",
     options: SaveInvoiceOptions = {},
@@ -647,28 +673,49 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
 
       let savedInvoiceId = invoice.id;
       let savedInvoiceNumber = invoice.invoice_number;
+      let existingInvoiceStatus: {
+        status?: string | null;
+        paid?: number | null;
+        paid_at?: string | null;
+        completed_at?: string | null;
+      } | null = null;
+      const previousProductQuantities = new Map<number, number>();
+      const stockShortages: StockShortageNotice[] = [];
 
       await db.exec("BEGIN");
 
       try {
         if (savedInvoiceId) {
-          const previousItems = await db.query(
-            `SELECT product_id, quantity
-             FROM invoice_items
-             WHERE invoice_id = ? AND product_id IS NOT NULL`,
-            [savedInvoiceId],
-          );
+          const [invoiceStatusRow, previousItems] = await Promise.all([
+            db.get<{
+              status?: string | null;
+              paid?: number | null;
+              paid_at?: string | null;
+              completed_at?: string | null;
+            }>(
+              `SELECT status, paid, paid_at, completed_at
+               FROM invoices
+               WHERE id = ?`,
+              [savedInvoiceId],
+            ),
+            db.query<{ product_id: number; quantity: number }>(
+              `SELECT product_id, quantity
+               FROM invoice_items
+               WHERE invoice_id = ? AND product_id IS NOT NULL`,
+              [savedInvoiceId],
+            ),
+          ]);
+
+          existingInvoiceStatus = invoiceStatusRow;
 
           for (const item of previousItems || []) {
-            await db.run(
-              "UPDATE products SET quantity_in_stock = quantity_in_stock + ? WHERE id = ?",
-              [item.quantity, item.product_id],
+            const productId = Number(item.product_id);
+            previousProductQuantities.set(
+              productId,
+              (previousProductQuantities.get(productId) || 0) +
+                (Number(item.quantity) || 0),
             );
           }
-        } else {
-          savedInvoiceNumber = await generateInvoiceNumber(
-            invoice.invoice_date,
-          );
         }
 
         const dueDate =
@@ -676,9 +723,19 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
             ? invoice.invoice_date
             : invoice.due_date;
         const totals = calculateTotals(invoice.items, invoice.tax_rate);
+        const wasAlreadyPaid =
+          existingInvoiceStatus?.status === "paid" ||
+          Number(existingInvoiceStatus?.paid) === 1;
+        const effectiveTargetStatus =
+          wasAlreadyPaid && targetStatus === "draft" ? "paid" : targetStatus;
         const completedAt =
-          targetStatus === "paid" ? new Date().toISOString() : null;
-        const paidAt = targetStatus === "paid" ? new Date().toISOString() : null;
+          effectiveTargetStatus === "paid"
+            ? existingInvoiceStatus?.completed_at || new Date().toISOString()
+            : null;
+        const paidAt =
+          effectiveTargetStatus === "paid"
+            ? existingInvoiceStatus?.paid_at || new Date().toISOString()
+            : null;
 
         if (savedInvoiceId) {
           await db.run(
@@ -710,8 +767,8 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
               totals.tax_amount,
               invoice.tax_rate,
               totals.total,
-              targetStatus,
-              targetStatus === "paid" ? 1 : 0,
+              effectiveTargetStatus,
+              effectiveTargetStatus === "paid" ? 1 : 0,
               paidAt,
               completedAt,
               savedInvoiceId,
@@ -722,40 +779,57 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
             savedInvoiceId,
           ]);
         } else {
-          const result = await db.run(
-            `INSERT INTO invoices (
-              invoice_number, customer_name, customer_phone, customer_email,
-              customer_address, vehicle_make, vehicle_model, vehicle_year, license_plate,
-              invoice_date, due_date, due_upon_receipt, invoice_language,
-              status, notes, subtotal, tax_amount, tax_rate, total, paid, paid_at, completed_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [
-              savedInvoiceNumber,
-              invoice.customer_name.trim(),
-              normalizePhilippinePhone(invoice.customer_phone),
-              invoice.customer_email.trim(),
-              invoice.customer_address.trim(),
-              invoice.vehicle_make.trim(),
-              invoice.vehicle_model.trim(),
-              invoice.vehicle_year.trim(),
-              invoice.license_plate.trim(),
+          for (let attempt = 0; attempt < INVOICE_NUMBER_RETRY_LIMIT; attempt += 1) {
+            savedInvoiceNumber = await generateInvoiceNumber(
               invoice.invoice_date,
-              dueDate,
-              invoice.due_upon_receipt ? 1 : 0,
-              invoice.invoice_language,
-              targetStatus,
-              invoice.notes.trim(),
-              totals.subtotal,
-              totals.tax_amount,
-              invoice.tax_rate,
-              totals.total,
-              targetStatus === "paid" ? 1 : 0,
-              paidAt,
-              completedAt,
-            ],
-          );
+              { attemptOffset: attempt },
+            );
 
-          savedInvoiceId = result.lastID;
+            try {
+              const result = await db.run(
+                `INSERT INTO invoices (
+                  invoice_number, customer_name, customer_phone, customer_email,
+                  customer_address, vehicle_make, vehicle_model, vehicle_year, license_plate,
+                  invoice_date, due_date, due_upon_receipt, invoice_language,
+                  status, notes, subtotal, tax_amount, tax_rate, total, paid, paid_at, completed_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                  savedInvoiceNumber,
+                  invoice.customer_name.trim(),
+                  normalizePhilippinePhone(invoice.customer_phone),
+                  invoice.customer_email.trim(),
+                  invoice.customer_address.trim(),
+                  invoice.vehicle_make.trim(),
+                  invoice.vehicle_model.trim(),
+                  invoice.vehicle_year.trim(),
+                  invoice.license_plate.trim(),
+                  invoice.invoice_date,
+                  dueDate,
+                  invoice.due_upon_receipt ? 1 : 0,
+                  invoice.invoice_language,
+                  effectiveTargetStatus,
+                  invoice.notes.trim(),
+                  totals.subtotal,
+                  totals.tax_amount,
+                  invoice.tax_rate,
+                  totals.total,
+                  effectiveTargetStatus === "paid" ? 1 : 0,
+                  paidAt,
+                  completedAt,
+                ],
+              );
+
+              savedInvoiceId = result.lastID;
+              break;
+            } catch (error) {
+              if (
+                !isInvoiceNumberCollisionError(error) ||
+                attempt === INVOICE_NUMBER_RETRY_LIMIT - 1
+              ) {
+                throw error;
+              }
+            }
+          }
         }
 
         for (const item of invoice.items) {
@@ -777,10 +851,104 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
           );
 
           if (item.type === "product" && item.product_id) {
+            // Stock is reconciled after all rows are saved so draft edits apply
+            // only the changed quantity, not the whole invoice again.
+          }
+        }
+
+        const currentProductQuantities = getProductQuantityMap(invoice.items);
+        const productIds = new Set([
+          ...previousProductQuantities.keys(),
+          ...currentProductQuantities.keys(),
+        ]);
+
+        for (const productId of productIds) {
+          const previousQuantity = previousProductQuantities.get(productId) || 0;
+          const currentQuantity = currentProductQuantities.get(productId) || 0;
+          const delta = currentQuantity - previousQuantity;
+
+          if (delta === 0) {
+            continue;
+          }
+
+          if (delta < 0) {
+            const restoredQuantity = Math.abs(delta);
             await db.run(
-              "UPDATE products SET quantity_in_stock = quantity_in_stock - ? WHERE id = ?",
-              [item.quantity, item.product_id],
+              `UPDATE products
+               SET quantity_in_stock = MAX(quantity_in_stock + ?, 0),
+                   updated_at = CURRENT_TIMESTAMP
+               WHERE id = ?`,
+              [restoredQuantity, productId],
             );
+
+            const existingAdjustment = await db.get<{
+              id: number;
+              quantity_short: number;
+              quantity_used: number;
+            }>(
+              `SELECT id, quantity_short, quantity_used
+               FROM stock_adjustments
+               WHERE invoice_id = ?
+                 AND product_id = ?
+                 AND adjustment_type = 'invoice_shortfall'
+                 AND resolved = 0
+               ORDER BY id ASC
+               LIMIT 1`,
+              [savedInvoiceId, productId],
+            );
+
+            if (existingAdjustment) {
+              const nextShortfall = Math.max(
+                0,
+                Number(existingAdjustment.quantity_short) - restoredQuantity,
+              );
+              const nextQuantityUsed = Math.max(
+                0,
+                Number(existingAdjustment.quantity_used) - restoredQuantity,
+              );
+
+              if (nextShortfall === 0) {
+                await db.run("DELETE FROM stock_adjustments WHERE id = ?", [
+                  existingAdjustment.id,
+                ]);
+              } else {
+                await db.run(
+                  `UPDATE stock_adjustments
+                   SET quantity_short = ?,
+                       quantity_used = ?
+                   WHERE id = ?`,
+                  [nextShortfall, nextQuantityUsed, existingAdjustment.id],
+                );
+              }
+            }
+            continue;
+          }
+
+          const product = await db.get<Product>(
+            "SELECT id, name, quantity_in_stock FROM products WHERE id = ?",
+            [productId],
+          );
+
+          if (!product) {
+            continue;
+          }
+
+          const stockResult = await applyInvoiceStockUsage({
+            productId,
+            quantityUsed: delta,
+            invoiceId: savedInvoiceId,
+            invoiceNumber: savedInvoiceNumber,
+            description: product.name,
+          });
+
+          if (stockResult?.needsStockUpdate) {
+            stockShortages.push({
+              productId,
+              productName: product.name,
+              recordedStockBefore: stockResult.quantityBefore,
+              quantityUsed: delta,
+              quantityShort: stockResult.shortfallQuantity,
+            });
           }
         }
 
@@ -790,7 +958,7 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
           throw new Error("Invoice was not saved");
         }
 
-        if (targetStatus === "paid" || !options.silent) {
+        if (effectiveTargetStatus === "paid" || !options.silent) {
           await generateInvoicePdfForInvoice(savedInvoiceId);
         }
 
@@ -804,7 +972,7 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
           subtotal: totals.subtotal,
           tax_amount: totals.tax_amount,
           total: totals.total,
-          status: targetStatus,
+          status: effectiveTargetStatus,
         };
 
         lastSavedSnapshotRef.current = buildInvoiceSnapshot(persistedDraft);
@@ -820,7 +988,7 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
             subtotal: totals.subtotal,
             tax_amount: totals.tax_amount,
             total: totals.total,
-            status: targetStatus,
+            status: effectiveTargetStatus,
           };
 
           return buildInvoiceSnapshot(current) ===
@@ -829,7 +997,7 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
             : nextInvoice;
         });
 
-        if (targetStatus === "draft") {
+        if (targetStatus === "draft" && effectiveTargetStatus === "draft") {
           if (!options.silent) {
             await showAlert({
               title: savedInvoiceNumber
@@ -839,7 +1007,7 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
             });
           }
           onDraftSaved?.(savedInvoiceId);
-        } else {
+        } else if (targetStatus === "paid") {
           await showAlert({
             title: t("invoiceMarkedPaidSuccess"),
             confirmLabel: t("close"),
@@ -847,9 +1015,28 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
           onInvoiceCompleted?.(savedInvoiceId);
         }
 
+        if (!options.silent && stockShortages.length > 0) {
+          await showAlert({
+            title: t("inventoryNeedsUpdate"),
+            description: `${t("inventoryNeedsUpdateDesc")}\n\n${stockShortages
+              .map(
+                (shortage) =>
+                  `${shortage.productName}: ${shortage.quantityShort} ${t(
+                    "quantityShort",
+                  ).toLowerCase()}`,
+              )
+              .join("\n")}`,
+            confirmLabel: t("close"),
+          });
+        }
+
         setHasUnsavedChanges(false);
         setSaveStatus("saved");
-        return savedInvoiceId;
+        return {
+          id: savedInvoiceId,
+          invoice: persistedDraft,
+          stockShortages,
+        } satisfies SaveInvoiceResult;
       } catch (error) {
         await db.exec("ROLLBACK");
         throw error;
@@ -877,7 +1064,11 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
     }
 
     if (invoice.id && !hasUnsavedChanges) {
-      return invoice.id;
+      return {
+        id: invoice.id,
+        invoice,
+        stockShortages: [],
+      } satisfies SaveInvoiceResult;
     }
 
     return await saveInvoice("draft", { silent: true });
@@ -886,13 +1077,13 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
   const handleDownloadPdf = async () => {
     try {
       setDownloadingPdf(true);
-      const savedInvoiceId = await ensureDraftSavedForOutput();
+      const savedInvoice = await ensureDraftSavedForOutput();
 
-      if (!savedInvoiceId) {
+      if (!savedInvoice) {
         return;
       }
 
-      const generated = await generateInvoicePdfForInvoice(savedInvoiceId);
+      const generated = await generateInvoicePdfForInvoice(savedInvoice.id);
       if (!generated.pdfPath) {
         return;
       }
@@ -928,19 +1119,21 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
     printWindow.document.close();
 
     try {
-      const savedInvoiceId = await ensureDraftSavedForOutput();
+      const savedInvoice = await ensureDraftSavedForOutput();
 
-      if (!savedInvoiceId && !hasMeaningfulInvoiceContent(invoice)) {
+      if (!savedInvoice && !hasMeaningfulInvoiceContent(invoice)) {
         printWindow.close();
         return;
       }
 
       const printableInvoice = {
-        ...invoice,
-        invoice_number: invoice.invoice_number || t("draft"),
-        due_date: invoice.due_upon_receipt
-          ? invoice.invoice_date
-          : invoice.due_date,
+        ...(savedInvoice?.invoice || invoice),
+        invoice_number:
+          savedInvoice?.invoice.invoice_number || invoice.invoice_number || t("draft"),
+        due_date:
+          savedInvoice?.invoice.due_upon_receipt || invoice.due_upon_receipt
+            ? savedInvoice?.invoice.invoice_date || invoice.invoice_date
+            : savedInvoice?.invoice.due_date || invoice.due_date,
       };
 
       printWindow.document.open();
@@ -1019,7 +1212,7 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
 
         {items.length > 0 ? (
           <div className="space-y-3">
-            <div className="grid grid-cols-12 gap-3 rounded bg-gray-100 p-3 text-sm font-semibold text-gray-700">
+            <div className="hidden grid-cols-12 gap-3 rounded bg-gray-100 p-3 text-sm font-semibold text-gray-700 md:grid">
               <div className="col-span-5">{t("description")}</div>
               <div className="col-span-2 whitespace-nowrap">
                 {t("quantityShort")}
@@ -1034,9 +1227,9 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
             {items.map((item) => (
               <div
                 key={item.id}
-                className="grid grid-cols-12 items-center gap-3 rounded border border-gray-200 p-3"
+                className="grid grid-cols-1 items-start gap-3 rounded border border-gray-200 p-3 md:grid-cols-12 md:items-center"
               >
-                <div className="col-span-5">
+                <div className="md:col-span-5">
                   {item.type === "product" ? (
                     <div className="space-y-2">
                       <select
@@ -1056,7 +1249,7 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
                         {products.map((product) => (
                           <option key={product.id} value={product.id}>
                             {product.name} - {t("availableQuantity")}:{" "}
-                            {product.quantity_in_stock}
+                            {clampStockQuantity(product.quantity_in_stock)}
                           </option>
                         ))}
                       </select>
@@ -1092,7 +1285,10 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
                     />
                   )}
                 </div>
-                <div className="col-span-2">
+                <label className="space-y-1 md:col-span-2 md:block">
+                  <span className="text-xs font-medium text-muted-foreground md:hidden">
+                    {t("quantityShort")}
+                  </span>
                   <Input
                     type="number"
                     min="0"
@@ -1107,8 +1303,11 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
                     }
                     className="text-sm"
                   />
-                </div>
-                <div className="col-span-2">
+                </label>
+                <label className="space-y-1 md:col-span-2 md:block">
+                  <span className="text-xs font-medium text-muted-foreground md:hidden">
+                    {t("unitPrice")}
+                  </span>
                   <Input
                     type="number"
                     min="0"
@@ -1124,17 +1323,26 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
                     }
                     className="text-sm"
                   />
+                </label>
+                <div className="flex items-center justify-between gap-3 md:col-span-2 md:block md:text-right">
+                  <span className="text-xs font-medium text-muted-foreground md:hidden">
+                    {t("amount")}
+                  </span>
+                  <span className="font-semibold">
+                    {formatCurrency(item.amount, invoiceCurrency)}
+                  </span>
                 </div>
-                <div className="col-span-2 text-right font-semibold">
-                  {formatCurrency(item.amount, invoiceCurrency)}
-                </div>
-                <div className="col-span-1 flex justify-end">
-                  <button
+                <div className="flex justify-end md:col-span-1">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
                     onClick={() => handleRemoveItem(item.id)}
                     className="text-red-500 hover:text-red-700"
+                    aria-label={t("delete")}
                   >
                     <Trash2 className="h-4 w-4" />
-                  </button>
+                  </Button>
                 </div>
               </div>
             ))}
@@ -1171,7 +1379,7 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h1 className="text-3xl font-bold text-foreground">
-              {invoice.id ? t("editDraft") : t("createInvoice")}
+              {invoice.id ? t("editActiveJob") : t("createInvoice")}
             </h1>
             <p className="mt-1 text-muted-foreground">
               {t("createInvoicePageDesc")}
@@ -1228,8 +1436,8 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
               {saving
                 ? t("savingDraft")
                 : invoice.id
-                  ? t("saveDraftChanges")
-                  : t("saveDraft")}
+                  ? t("saveJobChanges")
+                  : t("saveActiveJob")}
             </Button>
             <Button
               onClick={() => void saveInvoice("paid")}
@@ -1237,7 +1445,7 @@ const InvoiceCreatorPage: React.FC<InvoiceCreatorPageProps> = ({
               className="gap-2"
             >
               <CheckCircle className="h-4 w-4" />
-              {saving ? t("completingInvoice") : t("markAsPaid")}
+              {saving ? t("completingInvoice") : t("markPaidComplete")}
             </Button>
           </div>
         </div>

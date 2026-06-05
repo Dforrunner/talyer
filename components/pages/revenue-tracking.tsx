@@ -4,10 +4,9 @@ import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { SortableTableHeader } from '@/components/ui/sortable-table-header';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { db, getMonthlyFinancialSummary } from '@/lib/db';
+import { getMonthlyFinancialSummary } from '@/lib/db';
 import { TrendingUp, DollarSign, ShoppingCart, Percent } from 'lucide-react';
 import { useLanguage } from '@/hooks/use-language';
-import { getYearDateRange } from '@/lib/date-utils';
 import { getNextSortConfig, sortRows, type SortConfig } from '@/lib/table-sort';
 
 interface MonthlyData {
@@ -21,11 +20,14 @@ interface MonthlyData {
   salaryPayments: number;
   costs: number;
   profit: number;
+  invoiceCount: number;
 }
 
 interface YearlyStats {
+  totalSalesRevenue: number;
   totalRevenue: number;
   totalCosts: number;
+  totalProductCosts: number;
   totalExpenses: number;
   totalSalaryPayments: number;
   totalAdditionalIncome: number;
@@ -80,35 +82,29 @@ const RevenueTrackingPage: React.FC = () => {
             salaryPayments: summary.salaryPayments,
             costs: summary.costs,
             profit: summary.profit,
+            invoiceCount: summary.invoiceCount,
           };
         }),
       );
 
       setMonthlyData(data);
 
-      // Calculate yearly stats
       const totalSalesRevenue = data.reduce((sum, month) => sum + month.salesRevenue, 0);
-      const totalCosts = data.reduce((sum, month) => sum + month.productCosts, 0);
+      const totalRevenue = data.reduce((sum, month) => sum + month.revenue, 0);
+      const totalProductCosts = data.reduce((sum, month) => sum + month.productCosts, 0);
+      const totalCosts = data.reduce((sum, month) => sum + month.costs, 0);
       const totalExpenses = data.reduce((sum, month) => sum + month.additionalExpenses, 0);
       const totalSalaryPayments = data.reduce((sum, month) => sum + month.salaryPayments, 0);
       const totalAdditionalIncome = data.reduce((sum, month) => sum + month.additionalIncome, 0);
-      const totalRevenue = totalSalesRevenue;
-      
-      // Calculate profit: Revenue + Additional Income - Costs - Expenses
-      const totalProfit = (totalRevenue + totalAdditionalIncome) - (totalCosts + totalExpenses + totalSalaryPayments);
-      const profitMargin = (totalRevenue + totalAdditionalIncome) > 0 ? (totalProfit / (totalRevenue + totalAdditionalIncome)) * 100 : 0;
-      const { startDate: startOfYear, endDate: endOfYear } = getYearDateRange(selectedYear);
-      const invoiceCount = await db.get(
-        `SELECT COUNT(*) as count FROM invoices 
-         WHERE invoice_date >= ? AND invoice_date <= ? AND status != 'draft'`,
-        [startOfYear, endOfYear]
-      );
-
-      const totalInvoices = invoiceCount?.count || 0;
-      const averageInvoice = totalInvoices > 0 ? totalRevenue / totalInvoices : 0;
+      const totalProfit = data.reduce((sum, month) => sum + month.profit, 0);
+      const profitMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
+      const totalInvoices = data.reduce((sum, month) => sum + month.invoiceCount, 0);
+      const averageInvoice = totalInvoices > 0 ? totalSalesRevenue / totalInvoices : 0;
 
       setYearlyStats({
+        totalSalesRevenue: Math.round(totalSalesRevenue * 100) / 100,
         totalRevenue: Math.round(totalRevenue * 100) / 100,
+        totalProductCosts: Math.round(totalProductCosts * 100) / 100,
         totalCosts: Math.round(totalCosts * 100) / 100,
         totalExpenses: Math.round(totalExpenses * 100) / 100,
         totalSalaryPayments: Math.round(totalSalaryPayments * 100) / 100,
@@ -162,6 +158,31 @@ const RevenueTrackingPage: React.FC = () => {
         return 0;
     }
   });
+  const productCostsLabel = t('productCosts');
+  const revenueUseData = yearlyStats
+    ? [
+        {
+          name: productCostsLabel,
+          value: Math.max(yearlyStats.totalProductCosts, 0),
+          color: '#f97316',
+        },
+        {
+          name: t('otherExpenses'),
+          value: Math.max(yearlyStats.totalExpenses, 0),
+          color: '#ef4444',
+        },
+        {
+          name: t('salaryPayments'),
+          value: Math.max(yearlyStats.totalSalaryPayments, 0),
+          color: '#f59e0b',
+        },
+        {
+          name: t('profit'),
+          value: Math.max(yearlyStats.totalProfit, 0),
+          color: '#10b981',
+        },
+      ].filter((entry) => entry.value > 0)
+    : [];
 
   if (loading) {
     return (
@@ -202,9 +223,10 @@ const RevenueTrackingPage: React.FC = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatCard
             icon={DollarSign}
-            label={t('totalRevenue')}
-            value={formatCurrency(yearlyStats.totalRevenue)}
+            label={t('invoiceRevenue')}
+            value={formatCurrency(yearlyStats.totalSalesRevenue)}
             color="bg-green-100 text-green-600"
+            subtext={t('paid')}
           />
           <StatCard
             icon={DollarSign}
@@ -213,10 +235,24 @@ const RevenueTrackingPage: React.FC = () => {
             color="bg-emerald-100 text-emerald-600"
           />
           <StatCard
+            icon={DollarSign}
+            label={t('totalRevenue')}
+            value={formatCurrency(yearlyStats.totalRevenue)}
+            color="bg-green-100 text-green-600"
+            subtext={`${t('invoiceRevenue')} + ${t('additionalIncome')}`}
+          />
+          <StatCard
+            icon={ShoppingCart}
+            label={productCostsLabel}
+            value={formatCurrency(yearlyStats.totalProductCosts)}
+            color="bg-orange-100 text-orange-600"
+          />
+          <StatCard
             icon={ShoppingCart}
             label={t('totalCosts')}
             value={formatCurrency(yearlyStats.totalCosts)}
             color="bg-orange-100 text-orange-600"
+            subtext={`${productCostsLabel} + ${t('otherExpenses')} + ${t('salaryPayments')}`}
           />
           <StatCard
             icon={ShoppingCart}
@@ -241,6 +277,7 @@ const RevenueTrackingPage: React.FC = () => {
             label={t('profitMargin')}
             value={`${yearlyStats.profitMargin.toFixed(1)}%`}
             color="bg-purple-100 text-purple-600"
+            subtext={`${t('profit')} / ${t('totalRevenue')}`}
           />
         </div>
       )}
@@ -255,6 +292,9 @@ const RevenueTrackingPage: React.FC = () => {
           <Card className="p-6">
             <p className="text-sm text-muted-foreground mb-2">{t('averageInvoiceValue')}</p>
             <p className="text-3xl font-bold">{formatCurrency(yearlyStats.averageInvoice)}</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {`${t('invoiceRevenue')} / ${t('totalInvoices')}`}
+            </p>
           </Card>
         </div>
       )}
@@ -264,6 +304,9 @@ const RevenueTrackingPage: React.FC = () => {
         {/* Revenue vs Costs Chart */}
         <Card className="p-6">
           <h2 className="text-lg font-semibold mb-4">{t('revenueVsCosts')}</h2>
+          <p className="mb-4 text-sm text-muted-foreground">
+            {t('revenueTimingNote')}
+          </p>
           <ResponsiveContainer width="100%" height={300}>
             <BarChart data={monthlyData}>
               <CartesianGrid strokeDasharray="3 3" />
@@ -271,8 +314,8 @@ const RevenueTrackingPage: React.FC = () => {
               <YAxis />
               <Tooltip formatter={(value) => formatCurrency(Number(value ?? 0))} />
               <Legend />
-              <Bar dataKey="revenue" fill="#10b981" name={`${t('revenue')} + ${t('additionalIncome')}`} />
-              <Bar dataKey="costs" fill="#f97316" name={`${t('costs')} + ${t('otherExpenses')} + ${t('salaryPayments')}`} />
+              <Bar dataKey="revenue" fill="#10b981" name={t('totalRevenue')} />
+              <Bar dataKey="costs" fill="#f97316" name={t('totalCosts')} />
             </BarChart>
           </ResponsiveContainer>
         </Card>
@@ -300,19 +343,14 @@ const RevenueTrackingPage: React.FC = () => {
       </div>
 
       {/* Profit Breakdown */}
-      {yearlyStats && (yearlyStats.totalRevenue > 0 || yearlyStats.totalAdditionalIncome > 0) && (
+      {yearlyStats && yearlyStats.totalRevenue > 0 && revenueUseData.length > 0 && (
         <Card className="p-6">
-          <h2 className="text-lg font-semibold mb-4">{t('revenueBreakdown')}</h2>
+          <h2 className="text-lg font-semibold mb-4">{t('totalRevenueUse')}</h2>
           <div className="flex items-center justify-center">
             <ResponsiveContainer width="100%" height={300}>
               <PieChart>
                 <Pie
-                  data={[
-                    { name: t('costs'), value: Math.max(yearlyStats.totalCosts, 0) },
-                    { name: t('otherExpenses'), value: Math.max(yearlyStats.totalExpenses, 0) },
-                    { name: t('salaryPayments'), value: Math.max(yearlyStats.totalSalaryPayments, 0) },
-                    { name: t('profit'), value: Math.max(yearlyStats.totalProfit, 0) },
-                  ].filter((entry) => entry.value > 0)}
+                  data={revenueUseData}
                   cx="50%"
                   cy="50%"
                   labelLine={false}
@@ -323,9 +361,9 @@ const RevenueTrackingPage: React.FC = () => {
                   fill="#8884d8"
                   dataKey="value"
                 >
-                  <Cell fill="#f97316" />
-                  <Cell fill="#ef4444" />
-                  <Cell fill="#10b981" />
+                  {revenueUseData.map((entry) => (
+                    <Cell key={entry.name} fill={entry.color} />
+                  ))}
                 </Pie>
                 <Tooltip formatter={(value) => formatCurrency(Number(value ?? 0))} />
               </PieChart>
@@ -340,7 +378,7 @@ const RevenueTrackingPage: React.FC = () => {
           <h2 className="text-lg font-semibold">{t('monthlyBreakdown')}</h2>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1180px]">
+          <table className="compact-data-table w-full min-w-[980px]">
             <thead className="bg-muted/50 border-b border-border">
               <tr>
                 <th className="w-px px-6 py-3 text-left whitespace-nowrap">
@@ -358,6 +396,19 @@ const RevenueTrackingPage: React.FC = () => {
                 <th className="w-px px-6 py-3 text-right whitespace-nowrap">
                   <SortableTableHeader
                     label={t('totalRevenue')}
+                    sortKey="revenue"
+                    sortConfig={sortConfig}
+                    onSort={(key) =>
+                      setSortConfig((current) =>
+                        getNextSortConfig(current, key as RevenueSortKey, 'desc'),
+                      )
+                    }
+                    align="right"
+                  />
+                </th>
+                <th className="w-px px-6 py-3 text-right whitespace-nowrap">
+                  <SortableTableHeader
+                    label={t('invoiceRevenue')}
                     sortKey="salesRevenue"
                     sortConfig={sortConfig}
                     onSort={(key) =>
@@ -383,20 +434,7 @@ const RevenueTrackingPage: React.FC = () => {
                 </th>
                 <th className="w-px px-6 py-3 text-right whitespace-nowrap">
                   <SortableTableHeader
-                    label={t('revenue')}
-                    sortKey="revenue"
-                    sortConfig={sortConfig}
-                    onSort={(key) =>
-                      setSortConfig((current) =>
-                        getNextSortConfig(current, key as RevenueSortKey, 'desc'),
-                      )
-                    }
-                    align="right"
-                  />
-                </th>
-                <th className="w-px px-6 py-3 text-right whitespace-nowrap">
-                  <SortableTableHeader
-                    label={t('totalCosts')}
+                    label={productCostsLabel}
                     sortKey="productCosts"
                     sortConfig={sortConfig}
                     onSort={(key) =>
@@ -468,9 +506,9 @@ const RevenueTrackingPage: React.FC = () => {
                 return (
                   <tr key={month.monthIndex} className="border-b border-border hover:bg-muted/30">
                     <td className="px-6 py-4 text-sm font-medium whitespace-nowrap">{month.month}</td>
+                    <td className="px-6 py-4 text-sm text-right whitespace-nowrap">{formatCurrency(month.revenue)}</td>
                     <td className="px-6 py-4 text-sm text-right whitespace-nowrap">{formatCurrency(month.salesRevenue)}</td>
                     <td className="px-6 py-4 text-sm text-right whitespace-nowrap">{formatCurrency(month.additionalIncome)}</td>
-                    <td className="px-6 py-4 text-sm text-right whitespace-nowrap">{formatCurrency(month.revenue)}</td>
                     <td className="px-6 py-4 text-sm text-right whitespace-nowrap">{formatCurrency(month.productCosts)}</td>
                     <td className="px-6 py-4 text-sm text-right whitespace-nowrap">{formatCurrency(month.additionalExpenses)}</td>
                     <td className="px-6 py-4 text-sm text-right whitespace-nowrap">{formatCurrency(month.salaryPayments)}</td>

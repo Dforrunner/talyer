@@ -15,7 +15,7 @@ It works especially well for mechanic and service shops, while keeping the brand
 - Show revenue, costs, and profit by month
 - Save customer contact details automatically from invoice history
 - Reuse customer details to prefill a new draft invoice
-- Export and import the full app data for backup or transfer
+- Export and import the full app data from `App Settings > Data Management` for backup or transfer
 - Switch the app and invoice language between English and Tagalog
 - Check for app updates from inside the app
 
@@ -51,7 +51,8 @@ It works especially well for mechanic and service shops, while keeping the brand
 
 ### Data & Setup
 - Business Settings for shop details, logo, VAT rate, and language
-- Data export/import for backup and moving to another computer
+- App Settings for language preferences, updates, backup, and transfer
+- Data export/import from `App Settings > Data Management` for backup and moving to another computer
 - Local file storage for logo and invoice PDFs
 - In-app update check and install flow for installed releases
 
@@ -76,7 +77,7 @@ That design choice is intentional.
 6. Print or download the invoice PDF
 7. Mark the invoice as paid from `Invoice History`
 8. Check reports in `Revenue Tracking`
-9. Export a backup from `Data Management`
+9. Export a backup from `App Settings > Data Management`
 
 ## Installation
 
@@ -114,7 +115,7 @@ The app is configured to use GitHub Releases from:
 - `https://github.com/Dforrunner/talyer`
 
 Inside the app, the user can:
-- open `Business Settings`
+- open `App Settings`
 - click `Check for Updates`
 - download an available update
 - click `Install and Restart`
@@ -145,6 +146,25 @@ git push origin main --tags
 
 GitHub Actions will build and publish release artifacts for macOS and Windows using GitHub Releases.
 
+### Release Safety Checklist
+
+Every release handoff must include:
+
+- `Breaking change: No`, `Workflow/training change`, `Potential breaking change`, or `Breaking change: Yes`
+- `Data migration: None`, `Additive`, or `Transforming`
+- `Automatic backup` status: not needed, implemented and verified, or release blocker
+- Old database fixture tested, when the release changes schema, import/export, file paths, status meanings, inventory behavior, or financial calculations
+- Manual restore steps written in non-technical language
+
+For migration releases, document:
+
+- Migration steps
+- Automatic backup behavior
+- Rollback plan
+- Verification on old data
+
+Do not publish a schema-changing or import/export-changing release until the app creates a timestamped pre-update backup and a failed migration/import leaves the existing data usable.
+
 ### Manual Local Release
 
 If you want to publish from your own machine instead of GitHub Actions:
@@ -159,10 +179,13 @@ pnpm run release
 The app stores data locally in the Electron app data folder.
 
 It includes:
-- SQLite database
-- business logo
+- SQLite database: `shopflow.db`
+- legacy database name that may be migrated on startup: `mechanic-shop.db`
+- business logo files
 - generated invoice PDFs
 - imported/exported app data
+
+Owner-facing backup and transfer is in `App Settings > Data Management`. Automatic pre-update backups, when a release includes a data migration, should be stored under the Electron app data folder in a timestamped backup folder such as `backups/pre-update/<timestamp>/`.
 
 ## Tech Stack
 
@@ -179,12 +202,14 @@ It includes:
 
 ## Current Production Notes
 
-The app is functionally ready for a real local service-shop workflow, especially for mechanic businesses.
+The app supports a real local service-shop workflow, especially for mechanic businesses. Release readiness still depends on running the validation, build, and manual installer checks for the exact version being published.
 
 Remaining practical release caveats:
 - macOS notarization is still needed for the smoothest public macOS distribution
 - portable Windows builds do not support the in-app updater
 - GitHub Releases must contain the built artifacts and update metadata for updater checks to succeed
+- schema-changing releases need a versioned migration ledger and verified automatic pre-update backup before publishing
+- import/export-changing releases need transactional import behavior and old backup fixture coverage before publishing
 
 ## Verification
 
@@ -192,6 +217,9 @@ Recently verified locally with:
 
 - `pnpm exec tsc --noEmit`
 - `pnpm exec next build --webpack`
+- `node scripts/validate-production.js`
+- `node scripts/smoke-production-docs.js`
+- `node scripts/smoke-translation-coverage.js`
 - `pnpm exec electron-builder --mac zip`
 - `node -c public/electron.js`
 - `node -c public/preload.js`

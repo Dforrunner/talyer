@@ -208,7 +208,7 @@ const CustomerContactsPage: React.FC<CustomerContactsPageProps> = ({
 
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[1120px]">
+          <table className="compact-data-table w-full min-w-[920px]">
             <thead className="border-b border-border bg-muted/50">
               <tr>
                 <th className="px-6 py-3 text-left whitespace-nowrap">
@@ -284,7 +284,7 @@ const CustomerContactsPage: React.FC<CustomerContactsPageProps> = ({
                     align="right"
                   />
                 </th>
-                <th className="w-px px-6 py-3  text-sm font-semibold whitespace-nowrap">
+                <th className="table-action-column px-6 py-3 text-right text-sm font-semibold whitespace-nowrap">
                   {t('actions')}
                 </th>
               </tr>
@@ -373,8 +373,8 @@ const CustomerContactsPage: React.FC<CustomerContactsPageProps> = ({
                           {contact.invoice_count}
                         </span>
                       </td>
-                      <td className="px-6 py-4 text-right whitespace-nowrap">
-                        <Button onClick={() => void onUseContact(contact)}>
+                      <td className="table-action-column px-6 py-4 text-right whitespace-nowrap">
+                        <Button size="sm" onClick={() => void onUseContact(contact)}>
                           {t('useOnInvoice')}
                         </Button>
                       </td>
